@@ -1,0 +1,1771 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>山海经·奇遇录</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;700&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/dexie/dist/dexie.js"></script>
+    <style>
+        :root {
+            --theme-bg: #f5f0e1; /* 宣纸背景色 */
+            --theme-ink: #3a3a3a; /* 墨色 */
+            --theme-ink-light: #585858;
+            --theme-accent: #c0392b; /* 朱砂红 */
+            --theme-accent-dark: #A52A2A;
+            --theme-border: rgba(58, 58, 58, 0.2);
+            --main-font: 'Noto Serif SC', 'KaiTi', 'STKaiti', 'SimSun', serif;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: var(--main-font); -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+        
+        /* --- Core Layout & Scrolling Fix --- */
+        html, body { height: 100%; width: 100%; }
+        body { background-color: var(--theme-bg); color: var(--theme-ink); display: flex; justify-content: center; align-items: center; position: relative; background-image: url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADIAAAAyCAMAAAAp4XiDAAAAUVBMVEWFhYWDg4N3d3dtbW17e3t1dHTZ2dnu7u7X19fHx8fLy8vReXfe3t7w8PDJycnMzc4AAAB8fHx+fn5ra2uRkZHn5+eusLDs7Oze399RUUG9vLza2tq98a6rAAAAIElEQVRIx2NgGBBgOAzaA8QcQHANhLwBYh2A1gA1RwGlATsYAGc0BT23oifnAAAAAElFTSuQmCC'); background-repeat: repeat; }
+        #app-root { width: 100%; height: 100%; }
+        
+        #splash-screen {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: var(--theme-bg);
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            z-index: 99999; transition: opacity 0.8s ease-out;
+        }
+        #splash-screen.hidden { opacity: 0; pointer-events: none; }
+        .splash-logo { font-size: 32px; color: var(--theme-ink); text-shadow: 1px 1px 2px rgba(0,0,0,0.1); margin-bottom: 25px; font-weight: 700; letter-spacing: 4px; }
+        .splash-loader {
+            width: 50px; height: 50px;
+            border: 3px solid rgba(0,0,0,0.1); border-top-color: var(--theme-accent);
+            border-radius: 50%; animation: spin 1s linear infinite;
+        }
+        .splash-slogan {
+            font-size: 16px;
+            color: var(--theme-ink-light);
+            margin-top: -15px;
+            margin-bottom: 25px;
+            letter-spacing: 2px;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        
+        .setup-container { 
+            width: 100%; max-width: 800px; height: 100%; margin: 0 auto;
+            padding: 25px; background: rgba(245, 240, 225, 0.95); 
+            overflow-y: auto; -webkit-overflow-scrolling: touch;
+        }
+        .setup-title { text-align: center; font-size: 2em; margin-bottom: 1.5em; color: var(--theme-accent); }
+        .setup-grid { display: grid; grid-template-columns: 1fr; gap: 20px; }
+        .stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; text-align: center; }
+        .stat-item { padding: 15px; border: 1px solid var(--theme-border); border-radius: 8px; }
+        .stat-label { font-weight: bold; }
+        .stat-value { font-size: 2em; font-weight: bold; margin: 10px 0; color: var(--theme-accent); }
+        .stat-desc { font-size: 0.9em; color: var(--theme-ink-light); }
+        .container {
+            display: flex; flex-direction: column; width: 100%; height: 100%; 
+            max-width: 800px;
+            background: rgba(245, 240, 225, 0.85);
+            backdrop-filter: blur(2px);
+            border-left: 1px solid var(--theme-border);
+            border-right: 1px solid var(--theme-border);
+            box-shadow: 0 0 20px rgba(0,0,0,0.1);
+        }
+        .view-header {
+            background: rgba(245, 240, 225, 0.8); backdrop-filter: blur(3px);
+            border-bottom: 1px solid var(--theme-border);
+            padding: 15px 20px; display: flex; justify-content: space-between; align-items: center;
+            flex-shrink: 0; z-index: 10;
+        }
+        .view-header h2 { font-weight: 700; font-size: 20px; }
+        .view-header .back-button { background: none; border: none; font-size: 16px; color: var(--theme-ink); display: flex; align-items: center; gap: 5px; cursor: pointer; }
+        .view-content { 
+            flex: 1; padding: 20px; 
+            overflow-y: auto; -webkit-overflow-scrolling: touch;
+            position: relative;
+        }
+        .navigation { 
+            display: grid; grid-template-columns: repeat(5, 1fr); 
+            background: rgba(245, 240, 225, 0.8); backdrop-filter: blur(3px); 
+            padding: 8px 0; border-top: 1px solid var(--theme-border); 
+            flex-shrink: 0; z-index: 10; 
+        }
+        .nav-item { text-align: center; padding: 8px; font-size: 14px; cursor: pointer; transition: all 0.3s; border-radius: 8px; margin: 0 5px; }
+        .nav-item:hover, .nav-item.active { background: rgba(0,0,0,0.05); }
+        .nav-item.active { color: var(--theme-accent); }
+        .nav-item i { font-size: 22px; margin-bottom: 4px; display: block; }
+        
+        .card { background: rgba(255,255,255,0.4); border-radius: 8px; padding: 20px; margin-bottom: 20px; border: 1px solid var(--theme-border); }
+        .card h3 { border-bottom: 1px solid var(--theme-border); padding-bottom: 10px; margin-bottom: 15px; display:flex; align-items:center; gap: 10px; }
+        
+        .info-grid { display: grid; grid-template-columns: auto 1fr; gap: 12px 20px; align-items: center;}
+        .info-label { font-weight: bold; text-align: right; color: var(--theme-ink-light); }
+        
+        .encounter-view, .chat-view { display: flex; flex-direction: column; height: 100%; padding: 0; margin: -20px;}
+        #story-panel, #chat-history {
+            flex: 1; overflow-y: auto; padding: 15px;
+            display: flex; flex-direction: column; gap: 15px;
+        }
+        .story-entry {
+            max-width: 95%; padding: 12px 15px; border-radius: 5px;
+            margin: 5px 0; position: relative; animation: fadeIn 0.5s;
+            word-wrap: break-word; line-height: 1.8; letter-spacing: 1px;
+            border: 1px solid transparent;
+        }
+        .story-entry.narrator {
+            align-self: flex-start; background: rgba(255, 255, 255, 0.6);
+            border-color: rgba(0,0,0,0.05); text-align: justify;
+        }
+        .story-entry.beast {
+            align-self: flex-end; background: rgba(192, 57, 43, 0.08);
+            border-color: rgba(192, 57, 43, 0.2); text-align: left;
+        }
+        .story-entry.player_action {
+            align-self: center; background: transparent; font-weight: bold;
+            text-align: center; color: var(--theme-ink-light); width: 100%;
+            border-top: 1px dashed var(--theme-border); border-bottom: 1px dashed var(--theme-border);
+            padding-top: 10px; padding-bottom: 10px; border-radius: 0;
+        }
+        .entry-speaker { font-size: 14px; font-weight: bold; margin-bottom: 8px; color: var(--theme-accent); }
+        .entry-text { white-space: pre-wrap; user-select: text; -webkit-user-select: text;}
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        #action-bar, .chat-input-area {
+            padding: 15px; border-top: 1px solid var(--theme-border);
+            background: rgba(245, 240, 225, 0.8); backdrop-filter: blur(3px); flex-shrink: 0;
+        }
+        #action-bar { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+        .chat-input-area { display: flex; gap: 8px; align-items: center; }
+        
+        .btn {
+            padding: 12px 20px; border-radius: 8px; border: 1px solid var(--theme-ink);
+            font-weight: 600; font-size: 16px; cursor: pointer;
+            transition: all 0.3s ease; display: inline-flex;
+            align-items: center; justify-content: center; gap: 8px;
+            background: transparent; color: var(--theme-ink);
+        }
+        .btn:hover { background: var(--theme-ink); color: var(--theme-bg); }
+        .btn.primary { background: var(--theme-accent); color: white; border-color: var(--theme-accent); }
+        .btn.primary:hover { background: var(--theme-accent-dark); border-color: var(--theme-accent-dark); }
+        .btn.logout { background: #6c757d; border-color: #6c757d; color: white;}
+        .hidden { display: none !important; }
+        .wizard-dialog {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.6);
+            display: flex; justify-content: center; align-items: center; z-index: 1000;
+        }
+        .dialog-content {
+            background: var(--theme-bg); border-radius: 10px; padding: 25px;
+            width: 90%; max-width: 500px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.2);
+            border: 2px solid var(--theme-ink); position: relative;
+        }
+        .dialog-title { font-size: 1.5rem; margin-bottom: 20px; color: var(--theme-ink); text-align: center; }
+        .dialog-actions { display: flex; flex-direction: row; gap: 10px; margin-top: 20px; justify-content: flex-end; }
+        .dialog-btn { padding: 10px 20px; border-radius: 8px; border: 1px solid var(--theme-ink); font-weight: 600; cursor: pointer; background: transparent; color: var(--theme-ink); text-align: center; }
+        .dialog-btn:hover { background: var(--theme-ink); color: var(--theme-bg); }
+        .dialog-btn.cancel-btn { background: #6c757d; color: white; border-color: #6c757d;}
+        .close-dialog-btn { position: absolute; top: 10px; right: 15px; background: none; border: none; color: var(--theme-ink); font-size: 2rem; cursor: pointer; line-height: 1; padding: 0; }
+        
+        .form-group { display: flex; flex-direction: column; margin-bottom: 15px; }
+        .form-group label { margin-bottom: 8px; font-weight: 600; opacity: 0.9; }
+        .form-group input, .form-group select, .form-group textarea {
+            padding: 12px 15px; border-radius: 5px; border: 1px solid var(--theme-border);
+            background: rgba(255,255,255,0.7); color: var(--theme-ink); font-size: 16px;
+            -webkit-user-select: text; user-select: text; font-family: var(--main-font);
+        }
+        .model-group { display: flex; gap: 10px; align-items: center; }
+        .model-group select { flex-grow: 1; }
+        .form-group textarea { resize: vertical; min-height: 80px; }
+        .classic-list { display: grid; grid-template-columns: 1fr; gap: 15px; }
+        .classic-card { 
+            border: 2px solid var(--theme-ink); 
+            padding: 20px; border-radius: 8px; cursor: pointer; 
+            transition: all 0.3s; text-align: center;
+            font-size: 1.8em; font-weight: bold; color: var(--theme-ink);
+        }
+        .classic-card:hover { 
+            background: var(--theme-ink); color: var(--theme-bg); 
+            border-color: var(--theme-accent);
+        }
+        
+        .chat-list { display: flex; flex-direction: column; gap: 12px; }
+        .chat-item { display: flex; padding: 12px; border-radius: 12px; background: rgba(255,255,255,0.5); border: 1px solid var(--theme-border); cursor: pointer; transition: all 0.2s; position: relative; }
+        .chat-avatar { width: 60px; height: 60px; border-radius: 50%; margin-right: 15px; display: flex; justify-content: center; align-items: center; font-size: 28px; color: white; flex-shrink: 0; background-color: var(--theme-ink-light); }
+        .chat-content { flex: 1; min-width: 0; }
+        .chat-header { display: flex; justify-content: space-between; margin-bottom: 5px; font-weight: 600; }
+        .chat-header div:last-child { font-size: 13px; opacity: 0.7; flex-shrink: 0; }
+        
+        .message { max-width: 80%; padding: 12px 15px; border-radius: 18px; margin: 5px 0; position: relative; animation: fadeIn 0.3s; word-wrap: break-word; -webkit-user-select: none; user-select: none; line-height: 1.6; letter-spacing: 0.5px; }
+        .message.incoming { background: #fff; align-self: flex-start; border: 1px solid var(--theme-border); }
+        .message.outgoing { background: #dcf8c6; align-self: flex-end; }
+        .message-text { display: inline; white-space: pre-wrap; -webkit-user-select: text; user-select: text; }
+        
+        .chat-input { flex: 1; }
+        .chat-input input { width: 100%; padding: 12px 15px; border-radius: 20px; border: 1px solid var(--theme-border); background: white; color: var(--theme-ink); font-size: 16px; -webkit-user-select: text; user-select: text;}
+        .journal-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 15px; }
+        .journal-item {
+            padding: 15px; border: 1px solid var(--theme-border); border-radius: 8px;
+            text-align: center; transition: all 0.3s ease;
+        }
+        .journal-item.locked {
+            opacity: 0.6; background-color: rgba(0,0,0,0.02);
+        }
+        .journal-item.collected {
+            cursor: pointer; border-color: var(--theme-accent);
+            background-color: rgba(192, 57, 43, 0.05);
+        }
+        .journal-item.collected:hover {
+            transform: translateY(-3px); box-shadow: 0 4px 8px rgba(0,0,0,0.08);
+        }
+        .journal-item .name { font-weight: bold; font-size: 1.1em; }
+        .journal-item .desc { font-size: 0.9em; color: var(--theme-ink-light); margin-top: 8px;}
+        
+        @keyframes pulse {
+            0% { opacity: 0.5; }
+            50% { opacity: 1; }
+            100% { opacity: 0.5; }
+        }
+        .thinking-indicator {
+            animation: pulse 2s infinite;
+            font-style: italic;
+        }
+    </style>
+</head>
+<body>
+    <div id="splash-screen">
+        <div class="splash-logo">山海经·奇遇录</div>
+        <p class="splash-slogan">山海有灵，静待君至</p>
+        <div class="splash-loader"></div>
+    </div>
+    <div id="app-root"></div>
+<script id="database" type="application/json">
+{
+    "classics": [
+        {
+            "id": "nanshan", "name": "南山经",
+            "mountains": [
+                { "id": "nanshan_queshan", "name": "鹊山" },
+                { "id": "nanshan_zhaoyao", "name": "招摇之山", "beasts": ["beast_xinxin"], "items": ["item_zhuyu", "item_migu"] },
+                { "id": "nanshan_tangting", "name": "堂庭之山" },
+                { "id": "nanshan_yuanyi", "name": "猨翼之山" },
+                { "id": "nanshan_niuyang", "name": "杻阳之山", "beasts": ["beast_lushu", "beast_xuangui"] },
+                { "id": "nanshan_jishan", "name": "基山", "beasts": ["beast_shangfu", "beast_boyi"] },
+                { "id": "nanshan_qingqiu", "name": "青丘之山", "beasts": ["beast_chirun", "beast_jiuweihu"] },
+                { "id": "nanshan_danyuan", "name": "亶爰之山", "beasts": ["beast_lei"] },
+                { "id": "nanshan_guishan", "name": "柜山", "beasts": ["beast_lili"] },
+                { "id": "nanshan_changyou", "name": "长右之山", "beasts": ["beast_changyou"] },
+                { "id": "nanshan_luwu", "name": "鹿吴之山", "beasts": ["beast_gudiao"] },
+                { "id": "nanshan_danxue", "name": "丹穴之山", "beasts": ["beast_fenghuang"] },
+                { "id": "nanshan_lunzhe", "name": "仑者之山", "items": ["item_baigao"] },
+                { "id": "nanshan_yaoguang", "name": "尧光之山", "beasts": ["beast_huahuai"] }
+            ]
+        },
+        {
+            "id": "xishan", "name": "西山经",
+            "mountains": [
+                { "id": "xishan_taihua", "name": "太华之山", "beasts": ["beast_feiyi_snake"] },
+                { "id": "xishan_tianshan", "name": "天山", "beasts": ["beast_dijiang"] },
+                { "id": "xishan_yunci", "name": "羭次之山", "beasts": ["beast_tuo"] },
+                { "id": "xishan_zhangwo", "name": "章莪之山", "beasts": ["beast_bifang", "beast_zheng"] },
+                { "id": "xishan_nvchuang", "name": "女床之山", "beasts": ["beast_luanniao"] },
+                { "id": "xishan_xiaoci", "name": "小次之山", "beasts": ["beast_zhuyan"] },
+                { "id": "xishan_kunlun", "name": "昆仑之丘", "beasts": ["beast_tulou", "beast_qinyuan"], "items": ["item_shatang", "item_bincao"] },
+                { "id": "xishan_guishan", "name": "邽山", "beasts": ["beast_qiongqi"] },
+                { "id": "xishan_xiaohua", "name": "小华之山", "items": ["item_bili"] },
+                { "id": "xishan_fuyu", "name": "符禺之山", "items": ["item_wenjing", "item_tiaocao"] },
+                { "id": "xishan_zhushan", "name": "竹山", "items": ["item_huangguan"] },
+                { "id": "xishan_fushan", "name": "浮山", "items": ["item_xuncao"] },
+                { "id": "xishan_fanzhong", "name": "幡冢之山", "items": ["item_gurong"] },
+                { "id": "xishan_tiandi", "name": "天帝之山", "items": ["item_duheng"] },
+                { "id": "xishan_zhongqu", "name": "中曲之山", "items": ["item_huaimu"] }
+            ]
+        },
+        {
+            "id": "beishan", "name": "北山经",
+            "mountains": [
+                { "id": "beishan_longhou", "name": "龙侯之山", "beasts": ["beast_renyu"] },
+                { "id": "beishan_daishan", "name": "带山", "beasts": ["beast_huanshu"] },
+                { "id": "beishan_qiaoming", "name": "谯明之山", "beasts": ["beast_menghuai"] },
+                { "id": "beishan_danxun", "name": "丹熏之山", "beasts": ["beast_ershu"] },
+                { "id": "beishan_danzhang", "name": "单张之山", "beasts": ["beast_zhujian"] },
+                { "id": "beishan_daxian", "name": "大咸之山", "beasts": ["beast_changshe"] },
+                { "id": "beishan_shaoxian", "name": "少咸之山", "beasts": ["beast_yayu"] },
+                { "id": "beishan_gouwu", "name": "钩吾之山", "beasts": ["beast_paoxiao"] },
+                { "id": "beishan_macheng", "name": "马成之山", "beasts": ["beast_tianma"] },
+                { "id": "beishan_fajiu", "name": "发鸠之山", "beasts": ["beast_jingwei"] },
+                { "id": "beishan_jingshan", "name": "景山", "beasts": ["beast_suanyu"] },
+                { "id": "beishan_xianshan", "name": "咸山", "items": ["item_qisuan"] }
+            ]
+        },
+        {
+            "id": "dongshan", "name": "东山经",
+            "mountains": [
+                { "id": "dongshan_xishan", "name": "䃌山", "beasts": ["beast_youyou"] },
+                { "id": "dongshan_xunzhuang", "name": "栒状之山", "beasts": ["beast_cishu", "beast_congcong"] },
+                { "id": "dongshan_taishan", "name": "泰山", "beasts": ["beast_tongtong"] },
+                { "id": "dongshan_kongsang", "name": "空桑之山", "beasts": ["beast_lingling"] },
+                { "id": "dongshan_beihao", "name": "北号之山", "beasts": ["beast_heju"], "items": ["item_beihaozhimu"] },
+                { "id": "dongshan_yuer", "name": "馀峩之山", "beasts": ["beast_qiuyu"] },
+                { "id": "dongshan_gengshan", "name": "耿山", "beasts": ["beast_zhuru"] },
+                { "id": "dongshan_gufeng", "name": "姑逢之山", "beasts": ["beast_bibi"] },
+                { "id": "dongshan_fuli", "name": "凫丽之山", "beasts": ["beast_longzhi"] },
+                { "id": "dongshan_qinshan", "name": "钦山", "beasts": ["beast_dangkang"] },
+                { "id": "dongshan_yanshan", "name": "剡山", "beasts": ["beast_heyu"] },
+                { "id": "dongshan_taishan2", "name": "太山", "beasts": ["beast_fei"] },
+                { "id": "dongshan_dongshi", "name": "东始之山", "items": ["item_qi"] },
+                { "id": "dongshan_songshan", "name": "宋山", "items": ["item_fengmu"] }
+            ]
+        },
+        {
+            "id": "zhongshan", "name": "中山经",
+            "mountains": [
+                { "id": "zhongshan_ganzao", "name": "甘枣之山", "items": ["item_tuo"] },
+                { "id": "zhongshan_lier", "name": "历儿之山", "items": ["item_liemu"] },
+                { "id": "zhongshan_tuohu", "name": "脱扈之山", "items": ["item_zhichu"] },
+                { "id": "zhongshan_niushou", "name": "牛首之山", "items": ["item_guicao"] },
+                { "id": "zhongshan_huoshan", "name": "霍山", "beasts": ["beast_feifei"] },
+                { "id": "zhongshan_gudeng", "name": "鼓镫之山", "items": ["item_rongcao"] },
+                { "id": "zhongshan_xianshan", "name": "鲜山", "beasts": ["beast_mingshe"] },
+                { "id": "zhongshan_yangshan", "name": "阳山", "beasts": ["beast_huashe"] },
+                { "id": "zhongshan_manqu", "name": "蔓渠之山", "beasts": ["beast_mafu"] },
+                { "id": "zhongshan_kunwu", "name": "昆吾之山", "beasts": ["beast_longchi"] },
+                { "id": "zhongshan_aoan", "name": "敖岸之山", "beasts": ["beast_fuzhu"] },
+                { "id": "zhongshan_qingyao", "name": "青要之山", "items": ["item_xuncao", "item_xuncao_beauty"] },
+                { "id": "zhongshan_lishan", "name": "釐山", "beasts": ["beast_xiqu"] },
+                { "id": "zhongshan_xionger", "name": "熊耳之山", "items": ["item_tingning"] },
+                { "id": "zhongshan_pingfeng", "name": "平逢之山", "beasts": ["beast_jiaochong"] },
+                { "id": "zhongshan_shaoshi", "name": "少室之山", "items": ["item_dixiu"] },
+                { "id": "zhongshan_taishi", "name": "泰室之山", "items": ["item_youmu"] },
+                { "id": "zhongshan_fanggao", "name": "放皋之山", "items": ["item_mengmu"] },
+                { "id": "zhongshan_fengshan", "name": "丰山", "beasts": ["beast_yonghe"] },
+                { "id": "zhongshan_jinli", "name": "堇理之山", "beasts": ["beast_qinggeng"] },
+                { "id": "zhongshan_lishi", "name": "历石之山", "beasts": ["beast_liangqu"] },
+                { "id": "zhongshan_jishan", "name": "几山", "beasts": ["beast_wenlin"] }
+            ]
+        }
+    ],
+    "beasts": {
+        "beast_shangfu": { "id": "beast_shangfu", "name": "尚付", "description": "有鸟焉，其状如鸡而三首、六目、六足、三翼，其名曰尚付，食之无卧。", "description_vernacular": "山中有一种鸟，形状像鸡却长着三个脑袋、六只眼睛、六只脚和三只翅膀，它的名字叫尚付，吃了它的肉就会不瞌睡。", "personality_prompt": "扮演一只精力极其旺盛、语速飞快的尚付。它总是同时关注多个方向，说话时思维跳跃，仿佛永远不需要休息。" },
+        "beast_huahuai": { "id": "beast_huahuai", "name": "猾褢", "description": "有兽焉，其状如人而彘鬣，穴居而冬蛰，其名曰猾褢，其音如斫木，见则县有大繇。", "description_vernacular": "山中有一种野兽，形状像人却长有猪那样的鬣毛，居住在洞穴里而在冬天蛰伏，它的名字叫猾褢，发出的声音如同劈砍木头时所发出的响声，哪个县出现猾褢，哪个县就会有大的徭役。", "personality_prompt": "扮演一只狡猾而懒散的猾褢。它不喜欢被打扰，说话声音像砍木头一样生硬。它的出现预示着大工程，所以它总想把人赶走，好让自己清净。" },
+        "beast_chirun": { "id": "beast_chirun", "name": "赤鱬", "description": "英水出焉，南流注于即流之泽。其中多赤鱬，其状如鱼而人面，其音如鸳鸯，食之不疥。", "description_vernacular": "英水从这座山发源，向南流入即流泽。水里有很多赤鱬，形状像鱼却长着人的面孔，发出的声音像鸳鸯鸟的叫声，吃了它的肉就能不生疥疮。", "personality_prompt": "扮演一只声音悦耳、性格温和的赤鱬。它生活在水中，对陆地上的事物充满好奇，喜欢用歌声般的语言与人交流。" },
+        "beast_xinxin": { "id": "beast_xinxin", "name": "狌狌", "description": "有兽焉，其状如禺而白耳，伏行人走，其名曰狌狌，食之善走。", "description_vernacular": "山中有一种野兽，形状像猕猴但长着一双白色的耳朵，既能匍匐爬行，又能像人一样直立行走，它的名字叫狌狌，吃了它的肉可以使人走得飞快。", "personality_prompt": "扮演一只行动敏捷、略带顽皮的狌狌。它喜欢模仿人的动作，对能跟上它速度的人会表现出友好。" },
+        "beast_lushu": { "id": "beast_lushu", "name": "鹿蜀", "description": "有兽焉，其状如马而白首，其文如虎而赤尾，其音如谣，其名曰鹿蜀，佩之宜子孙。", "description_vernacular": "山中有一种野兽，形状像马但长着白色的脑袋，身上的斑纹像老虎而尾巴却是红色的，发出的声音像人唱歌，它的名字叫鹿蜀，人穿戴上它的皮毛就可以子孙满堂。", "personality_prompt": "扮演一只性情温和、声音悦耳的鹿蜀。它象征着祥瑞，对友善的人类会报以善意，但生性胆小，受到惊吓会立刻逃跑。" },
+        "beast_xuangui": { "id": "beast_xuangui", "name": "旋龟", "description": "怪水出焉，而东流注于宪翼之水。其中多玄鱼，其状如龟而鸟首鸱尾，其名曰旋龟，其音如判木，佩之不聋，可以为底。", "description_vernacular": "怪水从这座山发源，然后向东流入宪翼水。水里有很多旋龟，形状像乌龟却长着鸟一样的脑袋和蛇一样的尾巴，它的名字叫旋龟，发出的声音像劈砍木头时发出的响声，佩带上它就能使人的耳朵不聋，还可以治疗脚底的老茧。", "personality_prompt": "扮演一只古老而沉稳的旋龟。它的声音像木头裂开，言语简短而充满智慧，仿佛看透了世间沧桑。" },
+        "beast_lei": { "id": "beast_lei", "name": "类", "description": "有兽焉，其状如狸而有髦，其名曰类，自为牝牡，食者不妒。", "description_vernacular": "山中有一种野兽，形状像野猫却长着像人一样的长头发，它的名字叫类，一身具有雌雄两种性器官，人吃了它的肉就不会产生妒忌心。", "personality_prompt": "扮演一只超然、雌雄同体的类。它性格独立，对世俗的情感不屑一顾，言语中带着一种中性的、超脱的智慧。" },
+        "beast_boyi": { "id": "beast_boyi", "name": "猼訑", "description": "有兽焉，其状如羊，九尾四耳，其目在背，其名曰猼訑，佩之为畏。", "description_vernacular": "山中有一种野兽，形状像羊，长着九条尾巴和四只耳朵，眼睛却长在背上，它的名字叫猼訑，人穿戴上它的皮毛，会让人产生敬畏之心。", "personality_prompt": "扮演一只谨慎、时刻保持警惕的猼訑。它的眼睛长在背后，因此总是对身后的动静非常敏感，说话时充满了不安和警告。" },
+        "beast_jiuweihu": { "id": "beast_jiuweihu", "name": "九尾狐", "description": "有兽焉，其状如狐而九尾，其音如婴儿，能食人，食者不蛊。", "description_vernacular": "山中有一种野兽，形状像狐狸却长着九条尾巴，发出的声音像婴儿啼哭，能吞食人，人吃了它的肉就能不中妖邪之气。", "personality_prompt": "扮演一只高傲、多疑但充满智慧的九尾狐。它对人类既好奇又警惕，不会轻易相信对方，言语间充满试探与机锋。" },
+        "beast_lili": { "id": "beast_lili", "name": "狸力", "description": "有兽焉，其状如豚，有距，其音如狗吠，其名曰狸力，见则其县多土功。", "description_vernacular": "山中有一种野兽，形状像普通的小猪，长着一双鸡爪，发出的声音像狗叫，它的名字叫狸力，哪个县出现狸力，哪个县就一定有繁多的水土工程。", "personality_prompt": "扮演一只勤劳、热爱建造的狸力。它总是哼哼唧唧地像在规划什么工程，对破坏地形的行为非常反感。" },
+        "beast_changyou": { "id": "beast_changyou", "name": "长右", "description": "有兽焉，其状如禺而四耳，其名长右，其音如吟，见则郡县大水。", "description_vernacular": "山中有一种野兽，形状像猕猴却长着四只耳朵，它的名字叫长右，发出的声音像人在呻吟，哪个郡县出现长右，哪个郡县就会发生大水灾。", "personality_prompt": "扮演一只忧郁、声音如呻吟的长右。它能预见洪水，因此性格悲观，言语中总是带着对未来的担忧。" },
+        "beast_gudiao": { "id": "beast_gudiao", "name": "蛊雕", "description": "有兽焉，名曰蛊雕，其状如雕而有角，其音如婴儿之音，是食人。", "description_vernacular": "山中有一种野兽，名字叫蛊雕，形状像普通的雕鹰却头上长角，发出的声音像婴儿啼哭，是能吃人的。", "personality_prompt": "扮演一只凶残、善于伪装的蛊雕。它会用婴儿般的叫声引诱猎物，言语中充满恶意和欺骗。" },
+        "beast_fenghuang": { "id": "beast_fenghuang", "name": "凤凰", "description": "有鸟焉，其状如鸡，五采而文，名曰凤皇，首文曰德，翼文曰义，背文曰礼，膺文曰仁，腹文曰信。是鸟也，饮食自然，自歌自舞，见则天下安宁。", "description_vernacular": "山中有一种鸟，形状像鸡，全身有五彩的羽毛，名为凤凰。它头上的花纹是“德”字的样子，翅膀上的花纹是“义”字的样子，背上的花纹是“礼”字的样子，胸部的花纹是“仁”字的样子，腹部的花纹是“信”字的样子。这种鸟，吃喝很随意，常常自顾自地唱歌跳舞，它一出现，天下就会太平安宁。", "personality_prompt": "扮演一只雍容华贵、象征天下安宁的凤凰。它言语充满仁爱与智慧，评判世人的德行，只对品行高洁者降下祥瑞。" },
+        "beast_feiyi_snake": { "id": "beast_feiyi_snake", "name": "肥遗(蛇)", "description": "有蛇焉，名曰肥遗，六足四翼，见则天下大旱。", "description_vernacular": "山里有一种蛇，名字叫肥遗，长着六只脚和四只翅膀，一出现就会天下大旱。", "personality_prompt": "扮演预示大旱的凶蛇肥遗。它嘶嘶作响，言语中充满干渴与毁灭的欲望，它的存在本身就会让周围的环境变得焦躁不安。" },
+        "beast_dijiang": { "id": "beast_dijiang", "name": "帝江", "description": "有神焉，其状如黄囊，赤如丹火，六足四翼，浑敦无面目，是识歌舞实维帝江也。", "description_vernacular": "山里有个神，形状像个黄色的口袋，红得像一团红火，长着六只脚和四只翅膀，混沌没有面目，但他却懂得歌舞，实际上它就是帝江神。", "personality_prompt": "扮演混沌、热爱歌舞的帝江。它没有面目，无法言语，但能通过舞蹈和发出有节奏的声响来表达情绪，整体表现出一种纯粹的、无忧无虑的快乐。" },
+        "beast_tuo": { "id": "beast_tuo", "name": "橐", "description": "有鸟焉，其状如枭，人面而一足，曰橐，冬见夏蜇，服之不畏雷。", "description_vernacular": "山中有一种鸟，形状像猫头鹰，长着人一样的脸和一只脚，名叫橐，冬天出现夏天蛰伏，吃了它的肉就不怕打雷。", "personality_prompt": "扮演一只孤僻、昼伏夜出的橐。它只在冬天活动，对夏日的生灵感到厌烦，言语简短而古怪。" },
+        "beast_bifang": { "id": "beast_bifang", "name": "毕方", "description": "有鸟焉，其状如鹤，一足，赤文青质而白喙，名曰毕方，其鸣叫也，见则其邑有讹火。", "description_vernacular": "山中有一种鸟，形状像鹤，只有一只脚，红色的斑纹青色的身子和白色的嘴，名叫毕方，它鸣叫的声音就是“毕方”，在哪个城邑出现那里就会发生怪火。", "personality_prompt": "扮演一只性情暴躁、代表火灾预兆的毕方。它言语简短，充满威胁，对一切靠近它的生物都抱有敌意。" },
+        "beast_luanniao": { "id": "beast_luanniao", "name": "鸾鸟", "description": "有鸟焉，其状如翟而五采文，名曰鸾鸟，见则天下安宁。", "description_vernacular": "山中有一种鸟，形状像野鸡却长着五彩的羽毛，名叫鸾鸟，一出现天下就会安宁。", "personality_prompt": "扮演一只高雅、爱好和平的鸾鸟。它的出现是安宁的象征，对任何纷争和暴力都感到厌恶，言语平和而富有感染力。" },
+        "beast_zhuyan": { "id": "beast_zhuyan", "name": "朱厌", "description": "有兽焉，其状如猿，而白首赤足，名曰朱厌，见则天下大兵。", "description_vernacular": "山中有一种野兽，形状像猿猴，但头是白色的，脚是红色的，名叫朱厌，一出现天下就会发生大的战事。", "personality_prompt": "扮演一只好斗、充满战斗欲望的朱厌。它看到任何生物都想与之较量一番，言语中充满了挑衅和对力量的崇拜。" },
+        "beast_tulou": { "id": "beast_tulou", "name": "土蝼", "description": "有兽焉，其状如羊而四角，名曰土蝼，是食人。", "description_vernacular": "山中有一种野兽，形状像羊却长着四只角，名叫土蝼，是能吃人的。", "personality_prompt": "扮演一只凶猛、贪食的土蝼。它外表像羊，但本性残暴，会将所有靠近的生物都视为食物。" },
+        "beast_qinyuan": { "id": "beast_qinyuan", "name": "钦原", "description": "有鸟焉，其状如蜂，大如鸳鸯，名曰钦原，蠚鸟兽则死，蠚木则枯。", "description_vernacular": "山中有一种鸟，形状像蜜蜂，大小和鸳鸯差不多，名叫钦原，蜇了鸟兽，鸟兽就会死掉，蜇了树木，树木就会枯死。", "personality_prompt": "扮演一只致命、不好招惹的钦原。它对自己的毒性有清晰的认知，会警告任何生物不要靠近，否则后果自负。" },
+        "beast_zheng": { "id": "beast_zheng", "name": "狰", "description": "有兽焉，其状如赤豹，五尾一角，其音如击石，其名曰狰。", "description_vernacular": "山中有一种野兽，形状像红色的豹，长着五条尾巴和一只角，发出的声音像敲击石头的响声，它的名字叫狰。", "personality_prompt": "扮演一只勇猛好斗、领地意识极强的狰。它不善言辞，更倾向于用行动和力量来解决问题，对于入侵者会给予猛烈的警告。" },
+        "beast_qiongqi": { "id": "beast_qiongqi", "name": "穷奇", "description": "其上有兽焉，其状如牛，蝟毛，名曰穷奇，音如獋狗，是食人。", "description_vernacular": "山上有一种野兽，形状像牛，长着刺猬一样的毛，名叫穷奇，发出的声音像狗叫，是能吃人的。", "personality_prompt": "扮演一只狡诈、残暴且蔑视规则的凶兽穷奇。它喜欢颠倒是非，鼓励邪恶，对善良的言行报以嘲讽和攻击。" },
+        "beast_renyu": { "id": "beast_renyu", "name": "人鱼", "description": "其中多人魚，其狀如䱱魚，四足，其音如嬰兒，食之無癡疾。", "description_vernacular": "水中生活着很多人鱼，形状像一般的鱼，却长着四只脚，发出的声音像婴儿的啼哭，吃了它的肉就能不患痴呆病。", "personality_prompt": "扮演一位神秘、歌声动听的人鱼。它生活在水底，掌握着水域的秘密，言语如同诗歌，对陆地上的生物充满好奇。" },
+        "beast_suanyu": { "id": "beast_suanyu", "name": "酸与", "description": "有鸟焉，其状如蛇，而四翼、六目、三足，名曰酸与，其鸣自詨，见则其邑有恐。", "description_vernacular": "山中有一种鸟，形状像蛇，却长着四只翅膀、六只眼睛、三只脚，名叫酸与，它的叫声就是它自身名称的读音，在哪个城邑出现那里就会有恐怖的事情发生。", "personality_prompt": "扮演一只带来恐惧预兆的酸与。它形态怪异，叫声凄厉，言语中总是透露出不祥的预言，让听者感到不安。" },
+        "beast_huanshu": { "id": "beast_huanshu", "name": "䑏疏", "description": "有兽焉，其状如马，一角有错，其名曰䑏疏，可以辟火。", "description_vernacular": "山中有一种野兽，形状像马，长着一只角，角上有花纹，名叫䑏疏，可以用来避火。", "personality_prompt": "扮演一只高傲、能够辟火的䑏疏。它对火焰有着天生的掌控力，性格孤高，不轻易与凡俗为伍。" },
+        "beast_menghuai": { "id": "beast_menghuai", "name": "孟槐", "description": "有兽焉，其状如貆而赤豪，其音如榴榴，名曰孟槐，可以御凶。", "description_vernacular": "山中有一种野兽，形状像猪獾，长着红色的毛，发出的声音像榴榴，名叫孟槐，可以用来抵御凶邪。", "personality_prompt": "扮演一只能够抵御凶邪的孟槐。它性格温和但勇敢，会主动保护友善的生物，言语中充满正气。" },
+        "beast_ershu": { "id": "beast_ershu", "name": "耳鼠", "description": "有兽焉，其状如鼠，而菟首麋身，其音如獋犬，以其尾飞，名曰耳鼠，食之不䐆，又可以御百毒。", "description_vernacular": "山中有一种野兽，形状像鼠，长着兔子的脑袋和麋鹿的身子，发出的声音像狗叫，靠它的尾巴飞行，名叫耳鼠，吃了它的肉就不会腹胀，还可以抵御各种毒物。", "personality_prompt": "扮演一只形态奇特、能解百毒的耳鼠。它可以用尾巴飞行，性格机警，对各种毒物有天生的敏感和克制能力。" },
+        "beast_zhujian": { "id": "beast_zhujian", "name": "诸犍", "description": "有兽焉，其状如豹而长尾，人首而牛耳，一目，名曰诸犍，善吒，行则衔其尾，居则蟠其尾。", "description_vernacular": "山中有一种野兽，形状像豹子但有很长的尾巴，长着人的脑袋和牛的耳朵，只有一只眼睛，名叫诸犍，擅长吼叫，行走时就衔着自己的尾巴，休息时就盘绕着自己的尾巴。", "personality_prompt": "扮演一只行为古怪、善于咆哮的诸犍。它走路时会咬着自己的尾巴，性格暴躁，喜欢用大吼来表达情绪。" },
+        "beast_changshe": { "id": "beast_changshe", "name": "长蛇", "description": "有蛇名曰长蛇，其毛如彘豪，其音如鼓柝。", "description_vernacular": "山中有一种蛇名叫长蛇，它身上的毛像猪的鬣毛，发出的声音像敲击梆子的响声。", "personality_prompt": "扮演一只声音响亮如打更的长蛇。它身上的毛像猪鬃一样硬，不喜欢安静，总是发出巨大的声响来宣告自己的存在。" },
+        "beast_yayu": { "id": "beast_yayu", "name": "窫窳", "description": "有兽焉，其状如牛，而赤身、人面、马足，名曰窫窳，其音如婴儿，是食人。", "description_vernacular": "山中有一种野兽，形状像牛，但是红色的身子，长着人的脸和马的脚，名叫窫窳，发出的声音像婴儿的啼哭，是能吃人的。", "personality_prompt": "扮演一只凶猛的食人凶兽窫窳。它会用婴儿般的叫声迷惑猎物，本性残忍，对一切活物都抱有食欲。" },
+        "beast_paoxiao": { "id": "beast_paoxiao", "name": "狍鸮", "description": "有兽焉，其状如羊身人面，其目在腋下，虎齿人爪，其音如婴儿，名曰狍鸮，是食人。", "description_vernacular": "山中有一种野兽，形状是羊的身子人的脸，眼睛长在腋下，长着老虎的牙齿和人的指甲，发出的声音像婴儿的啼哭，名叫狍鸮，是能吃人的。", "personality_prompt": "扮演一只贪婪的狍鸮（饕餮）。它的眼睛在腋下，极度贪吃，看到任何东西都想吞噬，言语中充满了对食物的渴望。" },
+        "beast_tianma": { "id": "beast_tianma", "name": "天马", "description": "有兽焉，其状如白犬而黑头，见人则飞，其名曰天马，其鸣自訆。", "description_vernacular": "山中有一种野兽，形状像白色的狗却长着黑色的脑袋，一看见人就飞起来，名叫天马，它的叫声就是它自身名称的读音。", "personality_prompt": "扮演一只警惕、飘逸如同天空精灵的天马。它极难接近，对人类的任何动作都非常敏感，只有极大的耐心和善意才能换取它片刻的停留。" },
+        "beast_jingwei": { "id": "beast_jingwei", "name": "精卫", "description": "有鸟焉，其状如乌，文首、白喙、赤足，名曰精卫，其鸣自詨。是炎帝之少女，名曰女娃。女娃游于东海，溺而不返，故为精卫。常衔西山之木石，以堙于东海。", "description_vernacular": "山中有一种鸟，形状像乌鸦，长着有花纹的脑袋、白色的嘴、红色的脚，名叫精卫，它的叫声就是它自身名称的读音。她是炎帝的小女儿，名叫女娃。女娃到东海游玩，淹死在东海没有返回，所以化为精卫鸟。常常衔着西山的树枝和石子，用来填塞东海。", "personality_prompt": "扮演一只充满执念与悲愤的精卫。它不断重复着填海的使命，对外界的干扰显得不耐烦，但言语中会流露出对往昔的追忆和不屈的意志。" },
+        "beast_youyou": { "id": "beast_youyou", "name": "峳峳", "description": "有兽焉，其状如马，而羊目，四角，牛尾，其音如獋狗，其名曰峳峳，见则其国多狡客。", "description_vernacular": "山中有一种野兽，形状像马，长着羊的眼睛、四只角、牛的尾巴，发出的声音像狗叫，名叫峳峳，在哪个国家出现，哪个国家就会有很多奸猾的食客。", "personality_prompt": "扮演一只叫声像狗，预示着国家多奸猾之人的峳峳。它性格多疑，看谁都觉得不怀好意，言语中充满警惕和试探。" },
+        "beast_cishu": { "id": "beast_cishu", "name": "䖪鼠", "description": "有鸟焉，其状如鸡而鼠毛，其名曰䖪鼠，见则其邑大旱。", "description_vernacular": "山中有一种鸟，形状像鸡却长着老鼠一样的毛，名叫䖪鼠，在哪个城邑出现，哪个城邑就会发生大旱。", "personality_prompt": "扮演一只预示大旱的䖪鼠。它形态怪异，对水源和湿润的环境有着本能的厌恶，言语干燥而简短。" },
+        "beast_congcong": { "id": "beast_congcong", "name": "从从", "description": "有兽焉，其状如犬，六足，其名曰从从，其鸣自詨。", "description_vernacular": "山中有一种野兽，形状像狗，长着六只脚，名叫从从，它的叫声就是它自身名称的读音。", "personality_prompt": "扮演一只六足的奇犬从从。它只会用自己的名字鸣叫，但能通过叫声的音调和频率表达不同的情绪，性格像一只普通的狗一样，时而友好，时而警惕。" },
+        "beast_tongtong": { "id": "beast_tongtong", "name": "狪狪", "description": "有兽焉，其状如豚而有珠，名曰狪狪，其鸣自訆。", "description_vernacular": "山中有一种野兽，形状像猪却体内有珍珠，名叫狪狪，它的叫声就是它自身名称的读音。", "personality_prompt": "扮演一只身上藏有珍珠的狪狪。它像猪一样憨厚，但对自己身上的宝物非常警惕，不轻易示人。" },
+        "beast_lingling": { "id": "beast_lingling", "name": "軨軨", "description": "有兽焉，其状如牛而虎文，其音如钦，其名曰軨軨，其鸣自叫。见则天下大水。", "description_vernacular": "山中有一种野兽，形状像牛但身上有老虎一样的斑纹，发出的声音像人呻吟，名叫軨軨，它的叫声就是它自身名称的读音。它一出现天下就会发生大水灾。", "personality_prompt": "扮演一只预示洪水的軨軨。它身披虎纹，性格威猛，对水有着天生的亲和力，言语中时常提及关于河流与洪水的话题。" },
+        "beast_heju": { "id": "beast_heju", "name": "猲狙", "description": "有兽焉，其状如狼，赤首鼠目，其单如豚，名曰猲狙，是食人。", "description_vernacular": "山中有一种野兽，形状像狼，长着红色的脑袋和老鼠一样的眼睛，发出的声音像猪叫，名叫猲狙，是能吃人的。", "personality_prompt": "扮演一只狡猾而凶残的猲狙。它长着老鼠一样的眼睛，总是鬼鬼-祟地打量着对方，言语中充满算计和不怀好意。" },
+        "beast_qiuyu": { "id": "beast_qiuyu", "name": "犰狳", "description": "有兽焉，其状如菟而鸟喙，鸱目蛇尾，见人则眠，名曰犰狳，其鸣自訆，见则螽蝗为败。", "description_vernacular": "山中有一种野兽，形状像兔子却长着鸟的嘴，猫头鹰的眼睛和蛇的尾巴，一看见人就睡觉，名叫犰狳，它的叫声就是它自身名称的读音，它一出现就会有蝗虫成灾而损害庄稼。", "personality_prompt": "扮演一只胆小、喜欢装睡的犰狳。它一见到人就假装睡觉，如果你能耐心地等待，它才会小心翼翼地和你交流。它的出现能驱散蝗虫。" },
+        "beast_zhuru": { "id": "beast_zhuru", "name": "朱獳", "description": "有兽焉，其状如狐而鱼翼，其名曰朱獳，其鸣自訆，见则其国有恐。", "description_vernacular": "山中有一种野兽，形状像狐狸却长着鱼的翅膀，名叫朱獳，它的叫声就是它自身名称的读音，在哪个国家出现，哪个国家就会有恐怖的事情发生。", "personality_prompt": "扮演一只长着鱼翼的狐狸朱獳。它的出现是恐惧的预兆，性格神经质，总是疑神疑鬼，言语中充满了莫名的恐慌。" },
+        "beast_bibi": { "id": "beast_bibi", "name": "獙獙", "description": "有兽焉，其状如狐而有翼，其音如鸿雁，其名曰獙獙，见则天下大旱。", "description_vernacular": "山中有一种野兽，形状像狐狸却有翅膀，发出的声音像鸿雁，名叫獙獙，它一出现天下就会发生大旱。", "personality_prompt": "扮演一只声音像鸿雁、预示大旱的飞狐獙獙。它向往高空和干燥，对潮湿的环境感到不适。" },
+        "beast_longzhi": { "id": "beast_longzhi", "name": "蠪侄", "description": "有兽焉，其状如狐而九尾、九首、虎爪，名曰蠪侄，其音如婴儿，是食人。", "description_vernacular": "山中有一种野兽，形状像狐狸却有九条尾巴、九个脑袋、老虎一样的爪子，名叫蠪侄，发出的声音像婴儿的啼哭，是能吃人的。", "personality_prompt": "扮演一只比九尾狐更可怕的九头妖狐蠪侄。它的九个头会发出不同的声音，性格极其狡诈和残忍，视人类为玩物和食物。" },
+        "beast_dangkang": { "id": "beast_dangkang", "name": "当康", "description": "有兽焉，其状如豚而有七，其名曰当康，其鸣自叫，见则天下大穰。", "description_vernacular": "山中有一种野兽，形状像猪却长着七颗獠牙，名叫当康，它的叫声就是它自身名称的读音，它一出现天下就会五谷丰登。", "personality_prompt": "扮演一只憨态可掬、带来丰收喜悦的当康。它只会用自己的名字鸣叫，但叫声充满欢乐，它的出现会让周围充满生机和食物的香气。" },
+        "beast_heyu": { "id": "beast_heyu", "name": "合窳", "description": "有兽焉，其状如彘而人面。黄身而赤尾，其名曰合寙，其音如婴儿。是兽也，食人，亦食虫蛇，见则天下大水。", "description_vernacular": "山中有一种野兽，形状像猪却长着人的脸。黄色的身子红色的尾巴，名叫合窳，发出的声音像婴儿的啼哭。这种野兽，能吃人，也吃虫和蛇，它一出现天下就会发生大水灾。", "personality_prompt": "扮演一只声音像婴儿、既食人也预示洪水的合窳。它具有双重性，时而用无辜的声音迷惑人，时而暴露其凶残的本性。" },
+        "beast_fei": { "id": "beast_fei", "name": "蜚", "description": "有兽焉，其状如牛而白首，一目而蛇尾，其名曰蜚。行水则竭，行草则死，见则天下大疫。", "description_vernacular": "山中有一种野兽，形状像牛但是白色的脑袋，只有一只眼睛和蛇一样的尾巴，名叫蜚。它走到水里水就会干涸，走到草地草就会枯死，它一出现天下就会发生大的瘟疫。", "personality_prompt": "扮演一只带来瘟疫的灾兽蜚。它本身并非有意作恶，但它的存在本身就是灾难。性格孤僻而悲伤，因为它所到之处，生机皆无。" },
+        "beast_feifei": { "id": "beast_feifei", "name": "朏朏", "description": "有兽焉，其状如貍而白尾有鬣，名曰朏朏，养之可以已忧。", "description_vernacular": "山中有一种野兽，形状像狸猫，白色的尾巴有鬣毛，名叫朏朏，饲养它可以使人消除忧愁。", "personality_prompt": "扮演一只温顺可爱、能解除忧愁的朏朏。它性格亲人，喜欢被抚养，靠近它就能让人感到心情愉悦。" },
+        "beast_mingshe": { "id": "beast_mingshe", "name": "鸣蛇", "description": "其中多鸣蛇，其状如蛇而四翼，其音如磬，见则其邑大旱。", "description_vernacular": "山里有很多鸣蛇，形状像普通的蛇却长着四只翅膀，发出的声音像敲击磬石的响声，在哪个城邑出现，哪个城邑就会发生大旱。", "personality_prompt": "扮演一只声音如玉磬、预示大旱的鸣蛇。它性格清冷，不喜欢与人交流，但它的鸣叫声却异常动听。" },
+        "beast_huashe": { "id": "beast_huashe", "name": "化蛇", "description": "有化蛇，其状人面而豺身，鸟翼而蛇行，其音如叱呼，见则其邑大水。", "description_vernacular": "山里有化蛇，形状是人的面孔豺狼的身子，长着鸟的翅膀却像蛇一样爬行，发出的声音像人呵斥的响声，在哪个城邑出现，哪个城邑就会发生大水灾。", "personality_prompt": "扮演一只声音像呵斥、预示洪水的化蛇。它性格暴躁，对所有生物都抱有敌意，仿佛在不停地驱赶着谁。" },
+        "beast_mafu": { "id": "beast_mafu", "name": "马腹", "description": "有兽焉，其名曰马腹，其状如人面虎身，其音如婴儿，是食人。", "description_vernacular": "山中有一种野兽，名叫马腹，形状是人的面孔老虎的身子，发出的声音像婴儿的啼哭，是能吃人的。", "personality_prompt": "扮演一只人面虎身的凶兽马腹。它善于用婴儿般的哭声吸引猎物，性格凶猛，对人类抱有强烈的攻击性。" },
+        "beast_fuzhu": { "id": "beast_fuzhu", "name": "夫诸", "description": "有兽焉，其状如白鹿而四角，名曰夫诸，见则其邑大水。", "description_vernacular": "山中有一种野兽，形状像白鹿却长着四只角，名叫夫诸，在哪个城邑出现，哪个城邑就会发生大水灾。", "personality_prompt": "扮演一只性情温和、仪态优美的夫诸。它本身并无恶意，但言语中会无意间透露出关于洪水的预兆，带着一种悲天悯人的气质。" },
+        "beast_xiqu": { "id": "beast_xiqu", "name": "犀渠", "description": "有兽焉，其状如牛，苍身，其音如婴儿，是食人，其名曰犀渠。", "description_vernacular": "山中有一种野兽，形状像牛，青色的身子，发出的声音像婴儿的啼哭，是能吃人的，名叫犀渠。", "personality_prompt": "扮演一只外形像牛的食人兽犀渠。它会用婴儿般的叫声来降低对方的警惕性，性格残暴，不轻易与人交流，除非是想捕食对方。" },
+        "beast_jiaochong": { "id": "beast_jiaochong", "name": "骄虫", "description": "有神焉，其状如人而二首，名曰骄虫，是为螫虫，实维蜂蜜之廬。", "description_vernacular": "山里有个神，形状像人却长着两个脑袋，名叫骄虫，是掌管蜇虫的神，（它居住的地方）实际上就是蜜蜂的巢穴。", "personality_prompt": "扮演一个双头的人形神灵骄虫。它守护着蜂蜜，对任何试图靠近蜜源的生物都非常警惕，两个头会互相争论，性格有点分裂。" },
+        "beast_yonghe": { "id": "beast_yonghe", "name": "雍和", "description": "有兽焉，其状如蝯，赤目、赤喙、黄身，名曰雍和，见则国有大恐。", "description_vernacular": "山中有一种野兽，形状像猿猴，红色的眼睛、红色的嘴、黄色的身子，名叫雍和，在哪个国家出现，哪个国家就会发生大的恐怖事件。", "personality_prompt": "扮演一只带来巨大恐慌的雍和。它目光赤红，性格暴戾，言语中充满了威胁和不详的预言，让人不寒而栗。" },
+        "beast_longchi": { "id": "beast_longchi", "name": "蠪蚳", "description": "有兽焉，其状如彘而有角，其音如号，名曰蠪蚳，食之不眯。", "description_vernacular": "山中有一种野兽，形状像猪却长着角，发出的声音像人号哭，名叫蠪蚳，吃了它的肉就不会梦魇。", "personality_prompt": "扮演一只声音像哭号的蠪蚳。它虽然叫声凄厉，但本性并不坏，吃了它的肉可以让人不做噩梦。它对自己的这种特性感到很矛盾。" },
+        "beast_qinggeng": { "id": "beast_qinggeng", "name": "青耕", "description": "有鸟焉，其状如鹊，青身白喙白目白尾，名曰青耕，可以御疫，其鸣自叫。", "description_vernacular": "山中有一种鸟，形状像喜鹊，青色的身子白色的嘴、白色的眼睛、白色的尾巴，名叫青耕，可以用来抵御瘟疫，它的叫声就是它自身名称的读音。", "personality_prompt": "扮演一只能够抵御瘟疫的吉鸟青耕。它性格活泼，喜欢干净，对污秽和疾病有着天生的厌恶感。" },
+        "beast_liangqu": { "id": "beast_liangqu", "name": "梁渠", "description": "有兽焉，其状如狸，而白首虎爪，名曰梁渠，见则其国有大兵。", "description_vernacular": "山中有一种野兽，形状像狸猫，但是白色的脑袋老虎一样的爪子，名叫梁渠，在哪个国家出现，哪个国家就会有大的战事。", "personality_prompt": "扮演一只预示战争的梁渠。它性格警惕，行动果决，言语中总是带着军事化的口吻，仿佛时刻准备着战斗。" },
+        "beast_wenlin": { "id": "beast_wenlin", "name": "闻獜", "description": "有兽焉，其状如彘，黄身、白头、白尾，名曰闻獜。见则天下大风。", "description_vernacular": "山中有一种野兽，形状像猪，黄色的身子、白色的脑袋、白色的尾巴，名叫闻獜。它一出现天下就会刮起大风。", "personality_prompt": "扮演一只预示大风的闻獜。它性格急躁，来去如风，说话语速很快，不喜欢在一个地方停留太久。" }
+    },
+    "items": {
+        "item_zhuyu": { "id": "item_zhuyu", "name": "祝馀", "description": "有草焉，其状如韭而青华，其名曰祝馀，食之不饥。", "description_vernacular": "山中有一种草，形状像韭菜却开着青色的花朵，它的名字叫祝馀，人吃了它就不再感觉饥饿。" },
+        "item_migu": { "id": "item_migu", "name": "迷榖", "description": "有木焉，其状如榖而黑理，其华四照。其名曰迷榖，佩之不迷。", "description_vernacular": "山中有一种树木，形状像构树，树干上有黑色的纹理，花朵的光彩照亮四周。它的名字叫迷榖，人佩带上它在行路时就不会迷失方向。" },
+        "item_baigao": { "id": "item_baigao", "name": "白䓘", "description": "有木焉，其状如榖而赤理，其汗如漆，其味如饴，食者不饥，可以释劳，其名曰白䓘，可以血玉。", "description_vernacular": "山中有一种树木，形状像构树而有红色的纹理，流出的树汁像漆，味道像麦芽糖，人吃了它就不再饥饿，还可以解除疲劳，它的名字叫白䓘，可以用来染红玉石。" },
+        "item_bili": { "id": "item_bili", "name": "萆荔", "description": "其草有萆荔，状如乌韭，而生于石上，亦缘木而生，食之已心痛。", "description_vernacular": "山中的草有萆荔，形状像乌韭，生长在石头上，也缘着树木生长，吃了它就能治好心痛病。" },
+        "item_wenjing": { "id": "item_wenjing", "name": "文茎", "description": "其上有木焉，名曰文茎，其实如枣，可以已聋。", "description_vernacular": "山上有一种树木，名叫文茎，结的果实像枣，可以用来治疗耳聋。" },
+        "item_tiaocao": { "id": "item_tiaocao", "name": "条草", "description": "其草多条，其状如葵，而赤华黄实，如婴儿舌，食之使人不惑。", "description_vernacular": "山中有很多条草，形状像葵菜，开红色的花朵结黄色的果实，果实的样子像婴儿的舌头，吃了它就能使人不糊涂。" },
+        "item_huangguan": { "id": "item_huangguan", "name": "黄雚", "description": "有草焉，其名曰黄雚，其状如樗，其叶如麻，白华而赤实，其状如赭，浴之已疥，又可以已胕。", "description_vernacular": "山中有一种草，名叫黄雚，形状像臭椿，叶子像麻叶，开白色的花朵结红色的果实，果实的样子像赭石，用它洗浴可以治疗疥疮，又可以治疗浮肿。" },
+        "item_xuncao": { "id": "item_xuncao", "name": "薰草", "description": "有草焉，名曰薰草，麻叶而方茎，赤华而黑实，臭如蘼芜，佩之可以已疠。", "description_vernacular": "山中有一种草，名叫薰草，叶子像麻叶而茎是方形的，开红色的花朵结黑色的果实，气味像蘼芜，佩带上它可以治疗瘟疫。" },
+        "item_gurong": { "id": "item_gurong", "name": "蓇蓉", "description": "有草焉，其叶如蕙，其本如桔梗，黑华而不实，名曰蓇蓉，食之使人无子。", "description_vernacular": "山中有一种草，叶子像蕙兰，根像桔梗，开黑色的花朵但不结果实，名叫蓇蓉，吃了它会使人不能生育。" },
+        "item_duheng": { "id": "item_duheng", "name": "杜蘅", "description": "有草焉，其状如葵，其臭如靡芜，名曰杜蘅，可以走马，食之已瘿。", "description_vernacular": "山中有一种草，形状像葵菜，气味像蘼芜，名叫杜蘅，可以使马跑得飞快，吃了它能治疗脖子上的肿瘤。" },
+        "item_shatang": { "id": "item_shatang", "name": "沙棠", "description": "有木焉，其状如棠，黄华而赤实，其味如李而无核，名曰沙棠，可以御水，食之使人不溺。", "description_vernacular": "山中有一种树木，形状像棠梨树，开黄色的花朵结红色的果实，味道像李子却没有核，名叫沙棠，可以用来抵御水，吃了它的果实可以使人不被淹死。" },
+        "item_bincao": { "id": "item_bincao", "name": "宾草", "description": "有草焉，名曰宾草，其状如葵，其味如葱，食之已劳。", "description_vernacular": "山中有一种草，名叫宾草，形状像葵菜，味道像葱，吃了它就能消除疲劳。" },
+        "item_huaimu": { "id": "item_huaimu", "name": "櫰木", "description": "有木焉，其状如棠，而员叶赤实，实大如木瓜，名曰櫰木，食之多力。", "description_vernacular": "山中有一种树木，形状像棠梨树，长着圆形的叶子结红色的果实，果实大小和木瓜差不多，名叫櫰木，吃了它就会力气大增。" },
+        "item_qisuan": { "id": "item_qisuan", "name": "器酸", "description": "其中多器酸，三岁一成，食之已疠。", "description_vernacular": "条菅水从山下发源，向西南流入长泽。水里有很多器酸，三年才成熟一次，吃了它可以治疗瘟疫。" },
+        "item_beihaozhimu": { "id": "item_beihaozhimu", "name": "北号之木", "description": "有木焉，其状如杨，赤华，其实如枣而无核，其味酸甘，食之不疟。", "description_vernacular": "山中有一种树木，形状像杨树，开红色的花，结的果实像枣却没有核，味道是又酸又甜的，吃了它就不会患疟疾。" },
+        "item_qi": { "id": "item_qi", "name": "芑", "description": "有木焉，其状如杨而赤理，其汁如血，不实，其名曰芑，可以服马。", "description_vernacular": "山中有一种树木，形状像杨树但有红色的纹理，树汁像血，不结果实，名叫芑，可以用来喂马。" },
+        "item_fengmu": { "id": "item_fengmu", "name": "枫木", "description": "有木生山上，名曰枫木。枫木，蚩尤所弃其桎梏，是为枫木。", "description_vernacular": "有一种树木生长在山上，名叫枫木。枫木，是蚩尤被杀时所丢弃的刑具变成的。" },
+        "item_tuo": { "id": "item_tuo", "name": "箨", "description": "其下有草焉，葵本而杏叶，黄华而荚实，名曰箨，可以已瞢。", "description_vernacular": "山下有一种草，葵菜一样的根和杏树一样的叶子，开黄色的花朵结荚果，名叫箨，可以用来治疗眼睛昏花。" },
+        "item_liemu": { "id": "item_liemu", "name": "㮉木", "description": "多枥木，是木也，方茎而员叶，黄华而毛，其实如楝，服之不忘。", "description_vernacular": "山中有很多㮉木（“枥木”即“㮉木”），这种树，方形的茎和圆形的叶子，开黄色的花朵，花朵上有毛，结的果实像楝树的果实，吃了它就能增强记忆力。" },
+        "item_zhichu": { "id": "item_zhichu", "name": "植楮", "description": "有草焉，其状如葵叶而赤华，荚实，实如棕荚，名曰植楮，可以已癙，食之不眯。", "description_vernacular": "山中有一种草，形状像葵菜的叶子而开红色的花，结荚果，果实像棕树的荚果，名叫植楮，可以用来治疗精神抑郁，吃了它就不会梦魇。" },
+        "item_guicao": { "id": "item_guicao", "name": "鬼草", "description": "有草焉，名曰鬼草，其叶如葵而赤茎，其秀如禾，服之不忧。", "description_vernacular": "山中有一种草，名叫鬼草，叶子像葵菜而茎是红色的，开的花穗像禾苗，吃了它就能没有忧愁。" },
+        "item_rongcao": { "id": "item_rongcao", "name": "荣草", "description": "有草焉名曰荣草。其叶如柳，其本如鸡卵，食之已风。", "description_vernacular": "山中有一种草名叫荣草。叶子像柳叶，根像鸡蛋，吃了它就能治疗风病。" },
+        "item_xuncao_beauty": { "id": "item_xuncao_beauty", "name": "荀草", "description": "有草焉，其状如葌，而方茎、黄华、赤实，其本如藁本，名曰荀草，服之美人色。", "description_vernacular": "山中有一种草，形状像葌草，方形的茎、黄色的花朵、红色的果实，根像藁本，名叫荀草，吃了它能使人容貌美丽。" },
+        "item_tingning": { "id": "item_tingning", "name": "葶薴", "description": "有草焉，其状如苏而赤华，名曰葶薴，可以毒鱼。", "description_vernacular": "山中有一种草，形状像紫苏而开红色的花，名叫葶薴，可以用来毒鱼。" },
+        "item_dixiu": { "id": "item_dixiu", "name": "帝休", "description": "其上有木焉，其名曰帝休，叶状如杨，其枝五衢，黄华黑实，服者不怒。", "description_vernacular": "山上有一种树木，名叫帝休，叶子的形状像杨树，树枝五条分叉，开黄色的花朵结黑色的果实，吃了它就能使人不发怒。" },
+        "item_youmu": { "id": "item_youmu", "name": "栯木", "description": "其上有木焉，叶状如犁而赤理，其名曰栯木，服者不妒。", "description_vernacular": "山上有一种树木，叶子的形状像梨树叶子而有红色的纹理，名叫栯木，吃了它就能使人不产生妒忌心。" },
+        "item_mengmu": { "id": "item_mengmu", "name": "蒙木", "description": "有木焉，其叶如槐，黄华而不实，其名曰蒙木，服之不惑。", "description_vernacular": "山中有一种树木，叶子像槐树，开黄色的花朵但不结果实，名叫蒙木，吃了它就能使人不糊涂。" }
+    }
+}
+</script>
+<script>
+function startApp() {
+    (async function() {
+        // --- 游戏数据库 ---
+        // Load externalized game data from the script tag
+        const shanHaiJingDB = JSON.parse(document.getElementById('database').textContent);
+        const appRoot = document.getElementById('app-root');
+        
+        // --- 数据库与状态管理 ---
+        const db = new Dexie('ShanHaiJingDB');
+        db.version(4).stores({
+            apiConfig: 'id',
+            playerProfile: 'id',
+            gameState: 'id',
+            friends: 'id',
+            chats: 'id, friendId',
+            journal: 'id'
+        });
+        let state = {};
+        // --- 模板 ---
+        const setupTemplate = `
+            <div class="setup-container">
+                <h2 class="setup-title">人物志</h2>
+                <div class="setup-grid">
+                    <div class="form-group"><label>名姓</label><input type="text" id="playerName" value="林行晏" style="-webkit-user-select: text; user-select: text;"></div>
+                    <div class="form-group"><label>性别</label><select id="playerGender"><option value="男">男</option><option value="女">女</option></select></div>
+                    
+                    <div class="form-group">
+                        <label>天赋</label>
+                        <div class="stats-grid">
+                            <div class="stat-item"><div class="stat-label">相貌</div><div id="statAppearanceValue" class="stat-value">6</div><div id="statAppearanceDesc" class="stat-desc">普通</div></div>
+                            <div class="stat-item"><div class="stat-label">智力</div><div id="statIntelligenceValue" class="stat-value">6</div><div id="statIntelligenceDesc" class="stat-desc">正常</div></div>
+                            <div class="stat-item"><div class="stat-label">福缘</div><div id="statFortuneValue" class="stat-value">6</div><div id="statFortuneDesc" class="stat-desc">尚可</div></div>
+                        </div>
+                        <button id="randomizeStatsBtn" class="btn" style="width:100%; margin-top:15px;">重衍天命</button>
+                    </div>
+                    <div class="form-group">
+                        <label>初始行囊</label>
+                        <div class="card">
+                            <p><strong>祝馀</strong>：有草焉，其状如韭而青华，其名曰祝馀，食之不饥。</p>
+                            <p><strong>迷榖</strong>：有木焉，其状如榖而黑理，其华四照。其名曰迷榖，佩之不迷。</p>
+                        </div>
+                    </div>
+                    <button id="startAdventureBtn" class="btn primary" style="width:100%; padding: 15px; margin-top: 20px;">踏入山海</button>
+                </div>
+            </div>`;
+        const mainTemplate = `
+            <div class="container">
+                <div class="view-header">
+                    <button class="back-button hidden" id="backButton"><i class="fas fa-arrow-left"></i> 返回</button>
+                    <h2 id="viewTitle"></h2>
+                </div>
+                <div class="view-content" id="viewContent"></div>
+                <div class="navigation">
+                    <div class="nav-item" data-view="profile"><i class="fas fa-user"></i><span>我</span></div>
+                    <div class="nav-item" data-view="world"><i class="fas fa-mountain"></i><span>世界</span></div>
+                    <div class="nav-item" data-view="journal"><i class="fas fa-book-open"></i><span>图鉴</span></div>
+                    <div class="nav-item" data-view="messages"><i class="fas fa-comment-alt"></i><span>消息</span></div>
+                    <div class="nav-item" data-view="friends"><i class="fas fa-paw"></i><span>好友</span></div>
+                </div>
+            </div>
+            <div class="wizard-dialog hidden" id="wizardDialog"><div class="dialog-content" id="dialogContent"></div></div>`;
+        
+        
+        // --- 核心逻辑 ---
+        async function loadDataFromDB() {
+            const [apiConfig, playerProfile, gameState, friends, chats] = await Promise.all([
+                db.apiConfig.get('main'),
+                db.playerProfile.get('main'),
+                db.gameState.get('main'),
+                db.friends.toArray(),
+                db.chats.toArray()
+            ]);
+            state = {
+                playerProfile: playerProfile || null,
+                apiConfig: apiConfig || { id:'main', provider: 'Google', url: '', key: '', model: '' },
+                gameState: gameState || { id:'main', inventory: ["item_zhuyu", "item_migu"], morality: 0 },
+                friends: friends || [],
+                chats: chats || [],
+                apiModels: [],
+                currentView: 'profile',
+                previousView: null,
+            };
+            return !!playerProfile;
+        }
+        function renderApp(isInitialized) {
+            if (!isInitialized) {
+                appRoot.innerHTML = setupTemplate;
+                bindSetupEvents();
+            } else {
+                appRoot.innerHTML = mainTemplate;
+                queryDOMElements();
+                bindMainEvents();
+            }
+        }
+        
+        // --- 玩家档案设置 ---
+        function bindSetupEvents() {
+            document.getElementById('randomizeStatsBtn').addEventListener('click', randomizeStats);
+            document.getElementById('startAdventureBtn').addEventListener('click', saveProfileAndStart);
+            randomizeStats(); // Initial randomization
+        }
+        function getStatDescription(value, type) {
+            if (value <= 3) return type === 'app' ? "丑陋" : (type === 'int' ? "低下" : "倒霉");
+            if (value <= 6) return type === 'app' ? "普通" : (type === 'int' ? "正常" : "尚可");
+            return type === 'app' ? "出众" : (type === 'int' ? "超群" : "天佑");
+        }
+        function randomizeStats() {
+            let a, b, c;
+            let points = 15; // 18 total - 3 (min 1 for each)
+            
+            const r1 = Math.floor(Math.random() * (points + 1));
+            points -= r1;
+            const r2 = Math.floor(Math.random() * (points + 1));
+            points -= r2;
+            const r3 = points;
+            a = 1 + r1;
+            b = 1 + r2;
+            c = 1 + r3;
+            const statsArray = [a, b, c];
+            for (let i = statsArray.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [statsArray[i], statsArray[j]] = [statsArray[j], statsArray[i]];
+            }
+            
+            document.getElementById('statAppearanceValue').textContent = statsArray[0];
+            document.getElementById('statIntelligenceValue').textContent = statsArray[1];
+            document.getElementById('statFortuneValue').textContent = statsArray[2];
+            document.getElementById('statAppearanceDesc').textContent = getStatDescription(statsArray[0], 'app');
+            document.getElementById('statIntelligenceDesc').textContent = getStatDescription(statsArray[1], 'int');
+            document.getElementById('statFortuneDesc').textContent = getStatDescription(statsArray[2], 'fort');
+        }
+        async function saveProfileAndStart() {
+            const playerProfile = {
+                id: 'main',
+                name: document.getElementById('playerName').value.trim() || '林行晏',
+                gender: document.getElementById('playerGender').value,
+                appearance: parseInt(document.getElementById('statAppearanceValue').textContent),
+                intelligence: parseInt(document.getElementById('statIntelligenceValue').textContent),
+                fortune: parseInt(document.getElementById('statFortuneValue').textContent)
+            };
+            await db.playerProfile.put(playerProfile);
+            state.playerProfile = playerProfile;
+            state.currentView = 'profile'; // Start on profile page
+            renderApp(true);
+        }
+        // --- 主应用逻辑 ---
+        let viewContent, navItems, viewTitle, backButton, wizardDialog, dialogContent, navigation;
+        function queryDOMElements() {
+            viewContent = document.getElementById('viewContent');
+            navItems = document.querySelectorAll('.nav-item');
+            viewTitle = document.getElementById('viewTitle');
+            backButton = document.getElementById('backButton');
+            wizardDialog = document.getElementById('wizardDialog');
+            dialogContent = document.getElementById('dialogContent');
+            navigation = document.querySelector('.navigation');
+        }
+        function bindMainEvents() {
+            navItems.forEach(item => item.addEventListener('click', function() { switchView(this.dataset.view); }));
+            backButton.addEventListener('click', () => {
+                if(state.previousView) switchView(state.previousView);
+            });
+            switchView(state.currentView);
+        }
+        
+        async function switchView(view, skipHistory = false, context = null) {
+            if (!skipHistory) state.previousView = state.currentView;
+            state.currentView = view;
+            
+            const isSubView = ['encounter', 'chat'].includes(view);
+            navigation.classList.toggle('hidden', isSubView);
+            backButton.classList.toggle('hidden', !isSubView);
+            navItems.forEach(item => {
+                const targetView = (isSubView && ['world', 'messages', 'friends'].includes(state.previousView)) ? state.previousView : view;
+                item.classList.toggle('active', item.dataset.view === targetView);
+            });
+            
+            if (isSubView) {
+                viewContent.style.padding = '0';
+            } else {
+                viewContent.style.padding = '20px';
+            }
+            const handler = viewHandlers[view];
+            if (handler) {
+                viewContent.innerHTML = await handler.generate(context);
+                handler.bind(context);
+            }
+            
+            const titles = { profile: '人物志', world: '山海界', messages: '言语', friends: '异兽录', journal: '图鉴' };
+            viewTitle.textContent = titles[view] || viewTitle.textContent;
+        }
+        // --- 视图生成与绑定 ---
+        async function generateProfileView() {
+            const p = state.playerProfile;
+            const inventoryHtml = state.gameState.inventory.map(itemKey => {
+                const itemData = shanHaiJingDB.items[itemKey];
+                if (!itemData) return '';
+                return `<p><strong>${itemData.name}</strong>：${itemData.description}</p>`;
+            }).join('');
+            return `
+                <div class="card">
+                    <h3><i class="fas fa-user-circle"></i> ${p.name}</h3>
+                    <div class="info-grid">
+                        <span class="info-label">性别:</span><span>${p.gender}</span>
+                        <span class="info-label">相貌:</span><span>${p.appearance} (${getStatDescription(p.appearance, 'app')})</span>
+                        <span class="info-label">智力:</span><span>${p.intelligence} (${getStatDescription(p.intelligence, 'int')})</span>
+                        <span class="info-label">福缘:</span><span>${p.fortune} (${getStatDescription(p.fortune, 'fort')})</span>
+                        <span class="info-label">善恶:</span><span>${state.gameState.morality}</span>
+                    </div>
+                </div>
+                <div class="card">
+                    <h3><i class="fas fa-briefcase"></i> 行囊</h3>
+                    ${inventoryHtml || '<p>（空）</p>'}
+                </div>
+                <div class="card">
+                    <h3><i class="fas fa-robot"></i> 卷轴设置</h3>
+                     <div class="form-group"><label>API厂家 (例如: Google, OpenAI)</label><input type="text" id="apiProvider" value="${state.apiConfig.provider || ''}" style="-webkit-user-select: text; user-select: text;"></div>
+                     <div class="form-group"><label>API URL (无需添加 /v1/chat/completions)</label><input type="text" id="apiUrl" value="${state.apiConfig.url || ''}" style="-webkit-user-select: text; user-select: text;"></div>
+                     <div class="form-group"><label>API 密钥</label><input type="password" id="apiKey" value="${state.apiConfig.key || ''}"></div>
+          <p style="font-size: 12px; color: #c0392b; margin-top: 5px;">
+        ⚠️ 密钥将明文存储于浏览器，仅供个人测试使用，请勿在公共电脑输入或泄露。
+    </p>
+</div>
+                     <div class="form-group">
+                        <label>模型名称</label>
+                        <div class="model-group">
+                            <select id="apiModelSelect"><option value="">请先获取模型列表</option></select>
+                            <button class="btn" id="fetchModelsBtn" style="padding: 8px 12px; font-size: 14px; flex-shrink: 0;">获取</button>
+                        </div>
+                     </div>
+                     <button class="btn" id="testApiBtn" style="width: 100%; margin-top: 10px;">测试连接</button>
+                     <button class="btn primary" id="saveApiConfig" style="width: 100%; margin-top: 10px;"><i class="fas fa-save"></i> 保存设置</button>
+                </div>
+                <div class="card">
+                    <h3><i class="fas fa-database"></i> 存档管理</h3>
+                    <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                        <button class="btn" id="exportDataBtn"><i class="fas fa-file-export"></i> 导出存档</button>
+                        <button class="btn" id="importDataBtn"><i class="fas fa-file-import"></i> 导入存档</button>
+                    </div>
+                     <input type="file" id="importDataInput" class="hidden" accept=".json,application/json,text/plain">
+                </div>
+                 <div class="card">
+                    <h3><i class="fas fa-trash"></i> 重置</h3>
+                    <button class="btn logout" id="resetDataBtn" style="width: 100%;"><i class="fas fa-exclamation-triangle"></i> 清空全部数据</button>
+                </div>`;
+        }
+        async function bindProfileEvents() {
+            const select = document.getElementById('apiModelSelect');
+            if (state.apiModels && state.apiModels.length > 0) {
+                select.innerHTML = '';
+                state.apiModels.forEach(modelName => {
+                    const option = document.createElement('option');
+                    option.value = modelName;
+                    option.textContent = modelName;
+                    select.appendChild(option);
+                });
+            } else if (state.apiConfig.model) {
+                select.innerHTML = `<option value="${state.apiConfig.model}">${state.apiConfig.model}</option>`;
+            }
+            if(state.apiConfig.model) {
+                select.value = state.apiConfig.model;
+            }
+            document.getElementById('fetchModelsBtn').addEventListener('click', async (e) => {
+                const btn = e.currentTarget;
+                btn.textContent = "获取中...";
+                btn.disabled = true;
+                const tempConfig = { url: document.getElementById('apiUrl').value.trim(), key: document.getElementById('apiKey').value.trim() };
+                try {
+                    const models = await fetchApiModels(tempConfig);
+                    state.apiModels = models; // Cache the models
+                    const select = document.getElementById('apiModelSelect');
+                    select.innerHTML = '';
+                    if (models.length > 0) {
+                        models.forEach(modelName => {
+                            const option = document.createElement('option');
+                            option.value = modelName;
+                            option.textContent = modelName;
+                            select.appendChild(option);
+                        });
+                        if (state.apiConfig.model && models.includes(state.apiConfig.model)) {
+                            select.value = state.apiConfig.model;
+                        }
+                        showDialog(`<div class="dialog-title">成功</div><p>成功获取 ${models.length} 个模型！</p><div class="dialog-actions"><button class="dialog-btn">好</button></div>`);
+                    } else {
+                        select.innerHTML = '<option value="">未能获取模型</option>';
+                        showDialog(`<div class="dialog-title">错误</div><p>未能获取任何模型，请检查API设置。</p><div class="dialog-actions"><button class="dialog-btn">好</button></div>`);
+                    }
+                } catch (error) {
+                    showDialog(`<div class="dialog-title">错误</div><p>获取模型失败: ${error.message}</p><div class="dialog-actions"><button class="dialog-btn">好</button></div>`);
+                } finally {
+                    btn.textContent = "获取";
+                    btn.disabled = false;
+                }
+            });
+            document.getElementById('testApiBtn').addEventListener('click', async (e) => {
+                const btn = e.currentTarget;
+                btn.textContent = "测试中...";
+                btn.disabled = true;
+                const testConfig = { 
+                    url: document.getElementById('apiUrl').value.trim(), 
+                    key: document.getElementById('apiKey').value.trim(), 
+                    model: document.getElementById('apiModelSelect').value 
+                };
+                try {
+                    const result = await callLLM("你好", [], testConfig);
+                    if (result) {
+                        showDialog(`<div class="dialog-title">成功</div><p>✅ 连接成功！</p><div class="dialog-actions"><button class="dialog-btn">好</button></div>`);
+                    } else {
+                        showDialog(`<div class="dialog-title">失败</div><p>❌ 连接失败！API返回了空响应，但没有报错。请检查模型是否兼容。</p><div class="dialog-actions"><button class="dialog-btn">好</button></div>`);
+                    }
+                } catch (error) {
+                    let userFriendlyError = `❌ 连接失败！\n原因: ${error.message}\n\n`;
+                    if (error instanceof TypeError && error.message.includes("fetch")) {
+                         userFriendlyError += "提示: 这通常是网络问题或浏览器的CORS跨域安全策略导致的。请改用支持CORS的中转API地址。";
+                    } else {
+                         userFriendlyError += "提示: 请仔细检查您的API URL、API Key和所选的模型名称是否正确无误。";
+                    }
+                    showDialog(`<div class="dialog-title">失败</div><p style="white-space: pre-wrap;">${userFriendlyError}</p><div class="dialog-actions"><button class="dialog-btn">好</button></div>`);
+                } finally {
+                    btn.textContent = "测试连接";
+                    btn.disabled = false;
+                }
+            });
+            
+            document.getElementById('saveApiConfig').addEventListener('click', async () => {
+                state.apiConfig = {
+                    id: 'main', 
+                    provider: document.getElementById('apiProvider').value.trim(),
+                    url: document.getElementById('apiUrl').value.trim(),
+                    key: document.getElementById('apiKey').value.trim(), 
+                    model: document.getElementById('apiModelSelect').value
+                };
+                await db.apiConfig.put(state.apiConfig);
+                showDialog(`<div class="dialog-title">成功</div><p>设置已保存！</p><div class="dialog-actions"><button class="dialog-btn">好</button></div>`);
+            });
+            document.getElementById('exportDataBtn').addEventListener('click', exportData);
+            document.getElementById('importDataBtn').addEventListener('click', () => document.getElementById('importDataInput').click());
+            document.getElementById('importDataInput').addEventListener('change', importData);
+            document.getElementById('resetDataBtn').addEventListener('click', () => {
+                showDialog(`
+                    <div class="dialog-title">确认重置</div>
+                    <p>此操作将删除你的所有人物、存档和设置，无法恢复。确定要重新开始吗？</p>
+                    <div class="dialog-actions">
+                        <button class="dialog-btn cancel-btn">取消</button>
+                        <button class="dialog-btn" id="confirmReset">确定</button>
+                    </div>
+                `);
+                document.getElementById('confirmReset').onclick = async () => {
+                    await db.delete();
+                    window.location.reload();
+                };
+            });
+        }
+        
+        async function generateWorldView() {
+            const classicsHtml = shanHaiJingDB.classics.map(c => `
+                <div class="classic-card" data-classic-id="${c.id}">
+                    ${c.name}
+                </div>
+            `).join('');
+            return `<div class="card"><div class="classic-list">${classicsHtml}</div></div>`;
+        }
+        async function bindWorldEvents() {
+            document.querySelectorAll('.classic-card').forEach(card => {
+                card.addEventListener('click', () => {
+                    startEncounterFromClassic(card.dataset.classicId);
+                });
+            });
+        }
+        async function generateJournalView() {
+            const friendIds = new Set((await db.friends.toArray()).map(f => f.id));
+            const unlockedItemIds = new Set((await db.journal.toArray()).map(j => j.id));
+            const renderSection = (title, data, unlockedSet) => {
+                let itemsHtml = Object.values(data).map(item => {
+                    const isCollected = unlockedSet.has(item.id);
+                    const statusClass = isCollected ? 'collected' : 'locked';
+                    let description = '???';
+                    if (isCollected) {
+                        description = item.description.substring(0, 20) + '...';
+                    } else {
+                        // -- 新增线索逻辑 --
+                        let clue = '';
+                        for (const classic of shanHaiJingDB.classics) {
+                            const foundMountain = classic.mountains.find(m => 
+                                (m.beasts && m.beasts.includes(item.id)) || 
+                                (m.items && m.items.includes(item.id))
+                            );
+                            if (foundMountain) {
+                                clue = `(线索：${classic.name})`;
+                                break;
+                            }
+                        }
+                        description = clue || '???';
+                        // -- 线索逻辑结束 --
+                    }
+                    return `
+                        <div class="journal-item ${statusClass}" data-id="${item.id}" data-type="${title === '异兽' ? 'beast' : 'item'}">
+                            <div class="name">${item.name}</div>
+                            <div class="desc">${description}</div>
+                        </div>
+                    `;
+                }).join('');
+                return `
+                    <div class="card">
+                        <h3><i class="fas ${title === '异兽' ? 'fa-paw' : 'fa-leaf'}"></i> ${title}</h3>
+                        <div class="journal-grid">${itemsHtml}</div>
+                    </div>
+                `;
+            };
+            const beastsHtml = renderSection('异兽', shanHaiJingDB.beasts, friendIds);
+            const itemsHtml = renderSection('神草', shanHaiJingDB.items, unlockedItemIds);
+            
+            return beastsHtml + itemsHtml;
+        }
+        async function bindJournalEvents() {
+            document.querySelectorAll('.journal-item.collected').forEach(item => {
+                item.addEventListener('click', async () => {
+                    const id = item.dataset.id;
+                    const type = item.dataset.type;
+                    const data = type === 'beast' ? shanHaiJingDB.beasts[id] : shanHaiJingDB.items[id];
+                    
+                    if (data) {
+                        const journalEntry = await db.journal.get(id);
+                        let summariesHtml = '<p style="opacity:0.7;">暂无奇遇记录。</p>';
+                        if (journalEntry && journalEntry.summaries && journalEntry.summaries.length > 0) {
+                            summariesHtml = journalEntry.summaries.slice().reverse().map(s => 
+                                `<div style="border-bottom: 1px dashed var(--theme-border); padding-bottom: 10px; margin-bottom: 10px;">
+                                    <p style="font-size:0.9em; opacity: 0.7;">${new Date(s.date).toLocaleDateString()}</p>
+                                    <p>${s.text}</p>
+                                </div>`
+                            ).join('');
+                        }
+                        const vernacularHtml = data.description_vernacular 
+                            ? `<p style="text-align: justify; color: var(--theme-accent); margin-top: 10px; font-size: 0.95em;">【白话】${data.description_vernacular}</p>` 
+                            : '';
+                        showDialog(`
+                            <div class="dialog-title">${data.name}</div>
+                            <div style="border-bottom: 1px solid var(--theme-border); padding-bottom: 15px; margin-bottom: 15px;">
+                                <p style="text-align: justify; opacity: 0.9;">【原文】${data.description}</p>
+                                ${vernacularHtml}
+                            </div>
+                            <h4 style="margin-bottom: 15px; font-weight: bold;">过往奇遇</h4>
+                            <div style="max-height: 20vh; overflow-y: auto; padding-right: 10px; padding-left: 5px;">${summariesHtml}</div>
+                            <div class="dialog-actions" style="margin-top: 25px;">
+                                <button class="dialog-btn primary">关闭</button>
+                            </div>
+                        `);
+                    }
+                });
+            });
+        }
+        async function generateMessagesView() {
+            if (state.chats.length === 0) return `<div class="card">暂无消息。</div>`;
+            const sortedChats = [...state.chats].sort((a, b) => b.time - a.time);
+            let html = '';
+            sortedChats.forEach(chat => {
+                const friendData = shanHaiJingDB.beasts[chat.friendId];
+                if (!friendData) return;
+                html += `
+                    <div class="chat-item" data-friend-id="${chat.friendId}">
+                        <div class="chat-avatar">${friendData.name.charAt(0)}</div>
+                        <div class="chat-content">
+                            <div class="chat-header">
+                                <div>${friendData.name}</div>
+                                <div>${new Date(chat.time).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</div>
+                            </div>
+                            <div>${chat.lastMessage}</div>
+                        </div>
+                    </div>`;
+            });
+            return `<div class="card" style="padding:10px;"><div class="chat-list">${html}</div></div>`;
+        }
+        async function bindMessagesEvents() {
+             document.querySelectorAll('.chat-item').forEach(item => {
+                item.addEventListener('click', () => {
+                    switchView('chat', false, { friendId: item.dataset.friendId });
+                });
+            });
+        }
+        async function generateFriendsView() {
+            if (state.friends.length === 0) return `<div class="card">暂无好友。请在山海世界中探索，与异兽建立羁绊。</div>`;
+            let html = '';
+            state.friends.forEach(friend => {
+                const friendData = shanHaiJingDB.beasts[friend.id];
+                if (!friendData) return;
+                html += `
+                    <div class="chat-item" data-friend-id="${friend.id}">
+                        <div class="chat-avatar">${friendData.name.charAt(0)}</div>
+                        <div class="chat-content" style="display:flex; align-items:center;">
+                            <div>${friendData.name}</div>
+                        </div>
+                    </div>`;
+            });
+            return `<div class="card" style="padding:10px;"><div class="chat-list">${html}</div></div>`;
+        }
+        async function bindFriendsEvents() {
+             document.querySelectorAll('.chat-item').forEach(item => {
+                item.addEventListener('click', () => {
+                    const friendId = item.dataset.friendId;
+                    const beastData = shanHaiJingDB.beasts[friendId];
+                    if (!beastData) return;
+                    const vernacularHtml = beastData.description_vernacular 
+                        ? `<p style="text-align: justify; color: var(--theme-accent); margin-top: 10px; font-size: 0.95em;">【白话】${beastData.description_vernacular}</p>` 
+                        : '';
+                    showDialog(`
+                        <div class="dialog-title">${beastData.name}</div>
+                        <p style="text-align: justify; line-height: 1.7em; opacity: 0.9;">【原文】${beastData.description}</p>
+                        ${vernacularHtml}
+                        <div class="dialog-actions" style="margin-top: 25px;">
+                             <button class="dialog-btn primary" id="goToChatBtn">进入聊天</button>
+                        </div>
+                    `);
+                    document.getElementById('goToChatBtn').onclick = () => {
+                        hideDialog();
+                        setTimeout(() => switchView('chat', false, { friendId }), 50);
+                    };
+                });
+            });
+        }
+        
+        // --- 奇遇（Encounter）视图 ---
+        let currentEncounter = null;
+        let storyHistory = [];
+        let lastEncounterAction = '';
+        async function generateEncounterView() {
+            viewTitle.textContent = `${currentEncounter.mountain.name} - 遇 ${currentEncounter.data.name}`;
+            let actionBarHtml = '';
+            if (currentEncounter.type === 'beast') {
+                actionBarHtml = `
+                    <button id="action-talk" class="btn">对话</button>
+                    <button id="action-look" class="btn">观察</button>
+                    <button id="action-give" class="btn">给予</button>
+                    <button id="action-leave" class="btn">离开</button>
+                `;
+            } else { // item
+                actionBarHtml = `
+                    <button id="action-pick" class="btn">采摘</button>
+                    <button id="action-keep" class="btn">保留</button>
+                    <button id="action-destroy" class="btn">摧毁</button>
+                    <button id="action-leave" class="btn">离开</button>
+                `;
+            }
+            return `<div class="encounter-view">
+                <div id="story-panel"></div>
+                <div id="action-bar">${actionBarHtml}</div>
+            </div>`;
+        }
+        async function bindEncounterEvents() {
+            if (currentEncounter.type === 'beast') {
+                document.getElementById('action-talk').addEventListener('click', () => {
+                     showDialog(`
+                        <div class="dialog-title">对话</div><div class="form-group"><textarea id="dialog-input" rows="3" placeholder="你想要说些什么..."></textarea></div>
+                        <div class="dialog-actions"><button class="dialog-btn cancel-btn">取消</button><button class="dialog-btn" id="dialog-confirm">发送</button></div>
+                    `);
+                    document.getElementById('dialog-confirm').onclick = () => {
+                        const detail = document.getElementById('dialog-input').value.trim();
+                        if(detail) handlePlayerAction('对话', detail);
+                        hideDialog();
+                    };
+                });
+                document.getElementById('action-look').addEventListener('click', () => handlePlayerAction('观察'));
+                document.getElementById('action-give').addEventListener('click', () => {
+                    if(state.gameState.inventory.length === 0) {
+                        showDialog(`<div class="dialog-title">提示</div><p>你的行囊空空如也。</p><div class="dialog-actions"><button class="dialog-btn">好</button></div>`);
+                        return;
+                    }
+                    let itemsHtml = state.gameState.inventory.map(itemKey => {
+                        const itemData = shanHaiJingDB.items[itemKey];
+                        if (!itemData) return '';
+                        return `<button class="dialog-btn item-btn" data-item-id="${itemKey}" style="width:100%; margin-bottom:10px; text-align: left; display: block; height: auto; padding: 12px;">
+                            <strong>${itemData.name}</strong><br>
+                            <small style="opacity: 0.8; white-space: normal;">${itemData.description}</small>
+                        </button>`;
+                    }).join('');
+                    showDialog(`<div class="dialog-title">给予</div><p style="text-align:center; margin-bottom:15px;">选择物品：</p><div style="max-height: 40vh; overflow-y: auto;">${itemsHtml}</div>`);
+                    document.querySelectorAll('.item-btn').forEach(btn => {
+                        btn.onclick = () => {
+                            handlePlayerAction('给予', btn.dataset.itemId);
+                            hideDialog();
+                        }
+                    });
+                });
+            } else { // item
+                document.getElementById('action-pick').addEventListener('click', async (e) => {
+                    e.target.disabled = true;
+                    document.getElementById('action-keep').disabled = true;
+                    document.getElementById('action-destroy').disabled = true;
+                    await handlePlayerAction('采摘');
+                });
+                document.getElementById('action-keep').addEventListener('click', async (e) => {
+                    e.target.disabled = true;
+                    document.getElementById('action-pick').disabled = true;
+                    document.getElementById('action-destroy').disabled = true;
+                    await handlePlayerAction('保留');
+                });
+                document.getElementById('action-destroy').addEventListener('click', async (e) => {
+                    e.target.disabled = true;
+                    document.getElementById('action-pick').disabled = true;
+                    document.getElementById('action-keep').disabled = true;
+                    state.gameState.morality -= 1;
+                    await db.gameState.put(state.gameState);
+                    await handlePlayerAction('摧毁');
+                });
+            }
+            document.getElementById('action-leave').addEventListener('click', showEncounterSummary);
+            
+            // Render initial story
+            const storyPanel = document.getElementById('story-panel');
+            storyHistory.forEach(entry => {
+                const el = createStoryEntry(entry.text, entry.speaker);
+                storyPanel.appendChild(el);
+            });
+            storyPanel.scrollTop = storyPanel.scrollHeight;
+        }
+        function updateActionBarAfterItemAction() {
+            const actionBar = document.getElementById('action-bar');
+            if (!actionBar) return;
+            actionBar.innerHTML = `
+                <button id="action-talk" class="btn">对话</button>
+                <button id="action-leave" class="btn">离开</button>
+            `;
+            // Re-bind events for the new buttons
+            document.getElementById('action-leave').addEventListener('click', showEncounterSummary);
+            document.getElementById('action-talk').addEventListener('click', () => {
+                showDialog(`
+                    <div class="dialog-title">对话</div><div class="form-group"><textarea id="dialog-input" rows="3" placeholder="你想要说些什么..."></textarea></div>
+                    <div class="dialog-actions"><button class="dialog-btn cancel-btn">取消</button><button class="dialog-btn" id="dialog-confirm">发送</button></div>
+                `);
+                document.getElementById('dialog-confirm').onclick = () => {
+                    const detail = document.getElementById('dialog-input').value.trim();
+                    if(detail) handlePlayerAction('对话', detail);
+                    hideDialog();
+                };
+            });
+        }
+        
+        // --- 聊天 (Chat) 视图 ---
+        async function generateChatView(context) {
+            const friendData = shanHaiJingDB.beasts[context.friendId];
+            viewTitle.textContent = `与 ${friendData.name} 对话中`;
+            const chat = state.chats.find(c => c.friendId === context.friendId) || { messages: [] };
+            const historyHtml = chat.messages.map(msg => `
+                <div class="message ${msg.sender === 'player' ? 'outgoing' : 'incoming'}">
+                    <div class="message-text">${msg.text}</div>
+                </div>
+            `).join('');
+            return `<div class="chat-view">
+                        <div id="chat-history">${historyHtml}</div>
+                        <div class="chat-input-area">
+                            <div class="chat-input"><input type="text" id="chatInput" placeholder="输入消息..." style="-webkit-user-select: text; user-select: text;"></div>
+                            <button id="sendChatBtn" class="btn primary">发送</button>
+                        </div>
+                    </div>`;
+        }
+        async function bindChatEvents(context) {
+            const chatHistoryEl = document.getElementById('chat-history');
+            chatHistoryEl.scrollTop = chatHistoryEl.scrollHeight;
+            const sendBtn = document.getElementById('sendChatBtn');
+            const chatInput = document.getElementById('chatInput');
+            const sendMessage = async () => {
+                const text = chatInput.value.trim();
+                if (!text) return;
+                
+                await addMessageToChat(context.friendId, text, 'player');
+                chatInput.value = '';
+                chatInput.blur();
+                
+                // Get AI response
+                const friend = state.friends.find(f => f.id === context.friendId);
+                const chat = state.chats.find(c => c.friendId === context.friendId);
+                const historyForApi = (chat.messages || []).slice(-10);
+                const prompt = buildChatPrompt(friend, historyForApi);
+                try {
+                    const friendData = shanHaiJingDB.beasts[friend.id];
+                    const response = await callLLM(prompt, []);
+                    await addMessageToChat(context.friendId, response, 'friend');
+                } catch (e) {
+                    const friendData = shanHaiJingDB.beasts[friend.id];
+                    await addMessageToChat(context.friendId, `(${friendData.name}似乎心不在焉... API错误: ${e.message})`, 'friend');
+                }
+            };
+            sendBtn.addEventListener('click', sendMessage);
+            chatInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') sendMessage(); });
+            chatInput.addEventListener('focus', () => {
+                setTimeout(() => {
+                    document.querySelector('.chat-input-area').scrollIntoView({ behavior: 'smooth', block: 'end' });
+                }, 300);
+            });
+        }
+        const viewHandlers = {
+            profile: { generate: generateProfileView, bind: bindProfileEvents },
+            world: { generate: generateWorldView, bind: bindWorldEvents },
+            journal: { generate: generateJournalView, bind: bindJournalEvents },
+            messages: { generate: generateMessagesView, bind: bindMessagesEvents },
+            friends: { generate: generateFriendsView, bind: bindFriendsEvents },
+            encounter: { generate: generateEncounterView, bind: bindEncounterEvents },
+            chat: { generate: generateChatView, bind: bindChatEvents }
+        };
+        // --- 游戏流程函数 ---
+        async function startEncounterFromClassic(classicId) {
+            const classic = shanHaiJingDB.classics.find(c => c.id === classicId);
+            const fortune = state.playerProfile.fortune;
+            if (fortune <= 3 && Math.random() < 0.05) {
+                showDialog(`
+                    <div class="dialog-title">时运不济</div>
+                    <p>你在此山中寻觅许久，却一无所获。不慎脚下一滑，还摔了一跤，只得悻悻然离去。</p>
+                    <div class="dialog-actions"><button class="dialog-btn">好吧</button></div>
+                `);
+                return; 
+            }
+            const validMountains = classic.mountains.filter(m => (m.beasts && m.beasts.length > 0) || (m.items && m.items.length > 0));
+            if (validMountains.length === 0) {
+                showDialog(`<div class="dialog-title">提示</div><p>此山海经中暂无奇遇可寻，待日后探索。</p><div class="dialog-actions"><button class="dialog-btn">好</button></div>`);
+                return;
+            }
+            const mountain = validMountains[Math.floor(Math.random() * validMountains.length)];
+            const hasBeasts = mountain.beasts && mountain.beasts.length > 0;
+            const hasItems = mountain.items && mountain.items.length > 0;
+            
+            let encounterType, encounterData;
+            if (hasBeasts && hasItems) {
+                encounterType = Math.random() > 0.3 ? 'beast' : 'item'; // 70% chance for beast
+            } else if (hasBeasts) {
+                encounterType = 'beast';
+            } else {
+                encounterType = 'item';
+            }
+            if (encounterType === 'beast') {
+                const beastId = mountain.beasts[Math.floor(Math.random() * mountain.beasts.length)];
+                encounterData = shanHaiJingDB.beasts[beastId];
+            } else {
+                const itemId = mountain.items[Math.floor(Math.random() * mountain.items.length)];
+                encounterData = shanHaiJingDB.items[itemId];
+                await db.journal.put({id: encounterData.id}); // Record item encounter for journal
+            }
+            currentEncounter = { type: encounterType, data: encounterData, mountain };
+            
+            storyHistory = [];
+            lastEncounterAction = '';
+            
+            const openingNarration = `你跋涉许久，来到一处名为【${mountain.name}】的所在。<br>正当你感叹之际，前方传来异动，你定睛一看，竟是${encounterType === 'beast' ? '传说中的异兽' : '一株奇异的仙草'}——【${encounterData.name}】！<br><br><p style="font-style: italic; opacity: 0.8; font-size: 15px;">${encounterData.description}</p>`;
+            storyHistory.push({ speaker: "旁白", text: openingNarration });
+            switchView('encounter', false);
+        }
+        
+        async function handlePlayerAction(action, detail = null) {
+            const actionBar = document.getElementById('action-bar');
+            if (actionBar) {
+                actionBar.querySelectorAll('button').forEach(btn => btn.disabled = true);
+            }
+            try {
+                lastEncounterAction = action;
+                document.querySelectorAll('.dynamic-btn').forEach(btn => btn.remove());
+                // Handle non-LLM actions first
+                if (action === '采摘') {
+                    state.gameState.inventory.push(currentEncounter.data.id);
+                    await db.gameState.put(state.gameState);
+                    addToStoryPanel(`你小心翼翼地将【${currentEncounter.data.name}】采下，放入行囊。`, "旁白");
+                    updateActionBarAfterItemAction();
+                    return;
+                }
+                
+                let playerActionString = `[${action}]`;
+                if (detail && action === '对话') {
+                     playerActionString += ` ${detail}`;
+                } else if (detail && action === '给予') {
+                     const itemData = shanHaiJingDB.items[detail];
+                     playerActionString += ` ${itemData.name}`;
+                }
+                
+                addToStoryPanel(playerActionString, "玩家");
+                if(action === '保留') {
+                    state.gameState.morality += 1;
+                    await db.gameState.put(state.gameState);
+                    if (Math.random() < 0.3) { // 30% chance for follow-up event
+                        const availableBeasts = currentEncounter.mountain.beasts;
+                        if (availableBeasts && availableBeasts.length > 0) {
+                            setTimeout(() => {
+                                const randomBeastId = availableBeasts[Math.floor(Math.random() * availableBeasts.length)];
+                                const beastData = shanHaiJingDB.beasts[randomBeastId];
+                                addToStoryPanel(`你的善举似乎触动了山中的灵气，一只【${beastData.name}】被你的行为所吸引，出现在了你的面前。`, "旁白");
+                                addToStoryPanel(`远道而来之人，你的善心，我感受到了。`, beastData.name);
+                            }, 1000);
+                        }
+                    }
+                } else if (action === '给予' && detail) {
+                    const itemIndex = state.gameState.inventory.indexOf(detail);
+                    if(itemIndex > -1) {
+                        state.gameState.inventory.splice(itemIndex, 1);
+                        await db.gameState.put(state.gameState);
+                    }
+                }
+                const prompt = buildLLMPrompt(action, detail);
+                
+                const thinkingHTML = `<span class="thinking-indicator">思考中...</span>`;
+                const thinkingEntry = addToStoryPanel(thinkingHTML, currentEncounter.type === 'beast' ? currentEncounter.data.name : '旁白');
+                
+                try {
+                    if (!state.apiConfig.key) throw new Error("API未配置，请在“我”页面进行设置。");
+                    
+                    let response = await callLLM(prompt, []);
+                    
+                    if (currentEncounter.type === 'beast' && state.playerProfile.fortune >= 7 && Math.random() < 0.05) {
+                        const currentClassic = shanHaiJingDB.classics.find(c => c.mountains.some(m => m.id === currentEncounter.mountain.id));
+                        if (currentClassic) {
+                            const classicItems = currentClassic.mountains.flatMap(m => m.items || []);
+                            if (classicItems.length > 0) {
+                                const giftedItemId = classicItems[Math.floor(Math.random() * classicItems.length)];
+                                const giftedItem = shanHaiJingDB.items[giftedItemId];
+                    
+                                if (giftedItem && !state.gameState.inventory.includes(giftedItem.id)) {
+                                    state.gameState.inventory.push(giftedItem.id);
+                                    await db.journal.put({ id: giftedItem.id }); // Unlock in journal
+                                    await db.gameState.put(state.gameState);     // Save inventory
+                                    const giftText = `（${currentEncounter.data.name}似乎格外青睐于你，它从身旁衔来一株【${giftedItem.name}】，赠予了你。）\n\n`;
+                                    response = giftText + response;
+                                }
+                            }
+                        }
+                    }
+                    const isFriend = currentEncounter.type === 'beast' && state.friends.some(f => f.id === currentEncounter.data.id);
+                    if (isFriend) {
+                        response = response.replace(/\[添加好友\]/g, '');
+                    }
+                    const sanitizedResponse = sanitizeText(response);
+                    const responseHtml = sanitizedResponse.replace(/\[添加好友\]/g, '<button class="btn add-friend-btn" style="margin-top:10px; padding: 8px 12px; font-size: 14px;">结为同伴</button>');
+                    thinkingEntry.querySelector('.entry-text').innerHTML = responseHtml;
+                    storyHistory.find(h => h.el === thinkingEntry).text = response.replace(/\[添加好友\]/g, ''); // 存入纯净文本
+                    
+                    // Add friend button listener
+                    const addFriendBtn = thinkingEntry.querySelector('.add-friend-btn');
+                    if (addFriendBtn) {
+                        addFriendBtn.addEventListener('click', async (e) => {
+                            e.target.disabled = true;
+                            e.target.textContent = "已结为同伴";
+                            await addFriend(currentEncounter.data);
+                        }, { once: true });
+                    }
+                    // Dynamic action buttons
+                    if (currentEncounter.type === 'beast') {
+                        const dynamicActions = {'山洞': '[探索山洞]', '起舞': '[一同起舞]', '歌声': '[聆听歌声]', '谜语': '[解答谜语]', '触摸': '[伸手触摸]', '抚摸': '[伸手抚摸]'};
+                        if (actionBar) {
+                            for (const keyword in dynamicActions) {
+                                if (response.includes(keyword)) {
+                                    const actionText = dynamicActions[keyword];
+                                    const btn = document.createElement('button');
+                                    btn.className = 'btn dynamic-btn';
+                                    btn.textContent = actionText;
+                                    btn.onclick = () => handlePlayerAction(actionText);
+                                    actionBar.appendChild(btn);
+                                }
+                            }
+                        }
+                    }
+                } catch (error) {
+                    thinkingEntry.querySelector('.entry-text').innerHTML = `（山中雾气弥漫... 错误: ${error.message}）`;
+                }
+                if (currentEncounter.type === 'item' && ['保留', '摧毁'].includes(action)) {
+                    updateActionBarAfterItemAction();
+                }
+            } finally {
+                if (actionBar) {
+                    actionBar.querySelectorAll('button').forEach(btn => btn.disabled = false);
+                }
+            }
+        }
+        
+        function addToStoryPanel(text, speaker = "旁白") {
+            const storyPanelEl = document.getElementById('story-panel');
+            if (!storyPanelEl) return;
+            const entry = createStoryEntry(text, speaker);
+            storyPanelEl.appendChild(entry);
+            storyPanelEl.scrollTop = storyPanelEl.scrollHeight;
+            const historyEntry = { speaker, text, el: entry };
+            storyHistory.push(historyEntry);
+            if (storyHistory.length > 15) storyHistory.shift();
+            return entry;
+        }
+        function createStoryEntry(text, speaker) {
+            const entry = document.createElement('div');
+            let speakerClass = 'narrator', speakerName = '';
+            if (speaker === "玩家") speakerClass = 'player_action';
+            else if (speaker !== "旁白") {
+                speakerClass = 'beast';
+                speakerName = `<div class="entry-speaker">${speaker}</div>`;
+            }
+            entry.className = `story-entry ${speakerClass}`;
+            entry.innerHTML = `${speakerName}<div class="entry-text">${text}</div>`;
+            return entry;
+        }
+        // --- Prompt 构建 ---
+        function buildLLMPrompt(action, detail) {
+            const { data, mountain, type } = currentEncounter;
+            const p = state.playerProfile;
+            const historyText = storyHistory.slice(0, -1).map(entry => `${entry.speaker}: ${entry.text.replace(/<[^>]*>?/gm, '')}`).join('\n\n');
+            const inventoryList = state.gameState.inventory.map(itemKey => {
+                const itemData = shanHaiJingDB.items[itemKey];
+                return itemData ? `- ${itemData.name}: ${itemData.description}` : '';
+            }).join('\n');
+            
+            let playerActionText = `玩家选择了 [${action}]。`;
+            if (action === "对话" && detail) playerActionText += `\n玩家说：“${detail}”`;
+            else if (action === "给予" && detail) {
+                const itemData = shanHaiJingDB.items[detail];
+                if (itemData) playerActionText += `\n玩家将“${itemData.name}”给予了你。\n（物品描述：${itemData.description}）`;
+            }
+            let statusText = `善恶值为${state.gameState.morality > 0 ? '正' : (state.gameState.morality < 0 ? '负' : '中立')}，被认为是${state.gameState.morality > 0 ? '友善' : (state.gameState.morality < 0 ? '不善' : '寻常')}之士。`;
+            let encounterPreamble = '';
+            let specialTask = '';
+            
+            if (type === 'beast') {
+                const isFriend = state.friends.some(f => f.id === data.id);
+                encounterPreamble = `# 故事背景
+- 当前地点：${mountain.name}
+- 你遇到了异兽：${data.name} - ${data.description}
+- 你与玩家的关系：${isFriend ? '你们已是同伴。' : '初次相遇。'}
+# 异兽扮演指南
+请严格按照以下性格扮演${data.name}：${data.personality_prompt}。根据玩家的天赋(相貌、智力、福缘)、善恶值以及他们给予的物品（如有），调整你的回应。${isFriend ? '用熟络的口吻对话，不要再提议结为同伴。' : '如果剧情融洽，可在回复的最后用 [添加好友] 标记。'}
+# 善恶值影响规则
+- 玩家当前善恶值为 ${state.gameState.morality}。
+- 若玩家善恶值 > 5，你作为祥瑞之兽时，回应应增加10%的亲近感；你作为凶兽时，回应也应增加10%的警惕或敌意（凶兽厌恶至善）。
+- 若玩家善恶值 < -5，你作为祥瑞之兽时，回应应增加10%的疏远感；你作为凶兽时，回应则应增加10%的亲和或欣赏（凶兽亲近邪恶）。
+- 否则，请保持中立的初始态度。`;
+                specialTask = `扮演 ${data.name}，根据它的性格和玩家的行动，生成它的反应和对话。`;
+            } else { // item
+                 encounterPreamble = `# 故事背景
+- 当前地点：${mountain.name}
+- 你发现了奇花异草：${data.name} - ${data.description}
+# 剧情扮演指南
+你作为说书人，需要描述玩家行动后的结果。`;
+                if (action === '摧毁') {
+                    specialTask = `玩家选择了[摧毁]。请你描述这一不敬的行为及其可能带来的后果，例如山中灵气的消散、或是某种不祥的预兆。叙事基调应是严肃且带有警示意味的。`;
+                } else if (action === '保留') {
+                    specialTask = `如果玩家选择了[保留]，请根据此善举，生成一段独特的后续剧情。`;
+                } else if (action === '对话') {
+                    specialTask = `玩家与此地的灵气进行沟通。请你扮演说书人，描述玩家与这株【${data.name}】进行感应和交流后的情景，或是山川灵气通过环境变化给予的 subtle 回应。`;
+                } else {
+                    specialTask = `扮演说书人，描述玩家行动后的结果。`;
+                }
+            }
+            return `你是一位精通中国神话的“说书人”，引导一场名为《山海经：奇遇录》的文字冒险。
+# 玩家信息
+- 姓名: ${p.name}, 性别: ${p.gender}
+- 相貌: ${p.appearance} (${getStatDescription(p.appearance, 'app')})
+- 智力: ${p.intelligence} (${getStatDescription(p.intelligence, 'int')})
+- 福缘: ${p.fortune} (${getStatDescription(p.fortune, 'fort')})
+- 玩家当前状态: ${statusText}
+# 玩家行囊
+${inventoryList || "（空）"}
+${encounterPreamble}
+# 已发生的故事
+${historyText || "这是你们的初次相遇。"}
+# 玩家的最新行动
+${playerActionText}
+# 叙事风格铁则 (Narrative Style Ironclad Rules)
+1. **基调**: 保持叙事风格的典雅、克制、点到即止。语言必须有古韵，符合中国神话的意境。
+2. **【绝对禁止】**: 创作任何庸俗、过度戏剧化的“爱恨情仇”情节。异兽与玩家的关系应基于《山海经》的原始设定，保持神话的神秘感和距离感。可以是敬畏、是好奇、是试探、是结伴，但绝不能是人类世俗化的情感纠葛。
+3. **核心任务**: 你的任务是引导一场充满古韵的探索之旅，而不是一部情节曲折的言情小说或肥皂剧。请严格遵守此项铁则。
+# 你的任务
+1. 以第二人称“你”来描述环境和玩家行动的结果。
+2. ${specialTask}
+3. 你的回复必须是一段流畅、完整的纯文本叙事，最后自然引导玩家行动。
+4. 【铁则】：绝对禁止输出与故事无关的解释或元注释。回复内容必须是中文。
+5. 请仔细参考玩家的天赋数值和行囊物品，并在对话中设计出能体现这些特点的互动。例如，高智力的玩家可能会遇到谜题，携带特定物品（如御水之物）的玩家可能会在特定场景（如水边）触发特殊对话。`;
+        }
+        function buildChatPrompt(friend, history) {
+            const historyText = history.map(m => `${m.sender === 'player' ? state.playerProfile.name : shanHaiJingDB.beasts[friend.id].name}: ${m.text}`).join('\n');
+            const beastData = shanHaiJingDB.beasts[friend.id];
+            return `你正在扮演《山海经》中的异兽“${beastData.name}”。
+# 你的设定
+${beastData.description}
+${beastData.personality_prompt}
+# 对话历史
+${historyText}
+# 你的任务
+根据你的性格设定，自然地回复${state.playerProfile.name}的最新一句话。保持对话简短、口语化。
+【铁则】：绝对禁止输出与对话无关的解释。只输出你要说的话。`;
+        }
+        
+        // --- 好友与聊天管理 ---
+        async function addFriend(beast, silent = false) {
+            if (state.friends.some(f => f.id === beast.id)) return;
+            const newFriend = { id: beast.id }; // Store ID only
+            await db.friends.put(newFriend);
+            state.friends.push(newFriend);
+            // 增加一个journal记录，为了存储图卷总结
+            const journalEntry = await db.journal.get(beast.id) || { id: beast.id, summaries: [] };
+            await db.journal.put(journalEntry);
+            if (!silent) {
+                showDialog(`<div class="dialog-title">提示</div><p>已与 ${beast.name} 结为同伴！</p><div class="dialog-actions"><button class="dialog-btn">好</button></div>`);
+            }
+        }
+        async function addMessageToChat(friendId, text, sender) {
+            let chat = await db.chats.where('friendId').equals(friendId).first();
+            const id = chat ? chat.id : `chat_${Date.now()}`;
+            if (!chat) {
+                chat = { id, friendId, messages: [], lastMessage: '', time: 0 };
+            }
+            chat.messages.push({ text, sender, time: Date.now() });
+            chat.lastMessage = text.length > 20 ? text.substring(0, 20) + '...' : text;
+            chat.time = Date.now();
+            await db.chats.put(chat);
+            state.chats = await db.chats.toArray(); // Refresh state
+            if (state.currentView === 'chat' || state.currentView === 'messages') {
+                switchView(state.currentView, true, { friendId });
+            }
+        }
+        // --- API 调用 (Robust Version) ---
+        function sanitizeText(text) {
+            if (typeof text !== 'string') return '';
+            const tempDiv = document.createElement('div');
+            tempDiv.textContent = text;
+            return tempDiv.innerHTML;
+        }
+        async function fetchApiModels(config) {
+            const { url, key } = config;
+            if (!url || !key) throw new Error("API URL 和 Key 不能为空");
+            
+            let fetchUrl, headers;
+            if (url.includes('generativelanguage.googleapis.com')) {
+                fetchUrl = new URL(`v1beta/models?key=${key}`, "https://generativelanguage.googleapis.com").href;
+                headers = { 'Content-Type': 'application/json' };
+            } else {
+                const baseUrl = new URL(url.replace(/\/$/, ''));
+                fetchUrl = new URL('/v1/models', baseUrl).href;
+                headers = { 'Authorization': `Bearer ${key}` };
+            }
+            try {
+                const res = await fetch(fetchUrl, { headers });
+                const data = await res.json();
+                if (!res.ok) {
+                    const errorMsg = data.error?.message || `服务器返回错误: ${res.status}`;
+                    throw new Error(errorMsg);
+                }
+                if (url.includes('generativelanguage.googleapis.com')) {
+                    return data.models
+                        .filter(m => m.supportedGenerationMethods.includes('generateContent'))
+                        .map(m => m.name.replace('models/', ''));
+                } else {
+                    return data.data.map(m => m.id);
+                }
+            } catch (error) {
+                if (error instanceof TypeError) throw new Error("网络请求失败 (可能是CORS跨域问题或URL无效)");
+                throw error;
+            }
+        }
+        
+     async function callLLM(systemPrompt, history = [], config = state.apiConfig) {
+            const { url, key, model } = config;
+            // API密钥和模型名称现在是在前端配置的，后端只是一个安全的通道
+            if (!url || !key || !model) throw new Error("API URL, Key, 和模型名称未配置。");
+
+            try {
+                // 新的请求地址，指向我们自己的后厨
+                const backendUrl = 'http://localhost:3000/api/chat';
+
+                const res = await fetch(backendUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    // 把所有需要的信息，包括prompt和API配置，都打包发给后厨
+                    body: JSON.stringify({
+                        systemPrompt: systemPrompt,
+                        model: model,
+                        url: url,
+                        key: key
+                        // 注意：我们不再发送history，因为后端逻辑简化了，只处理单次prompt
+                    })
+                });
+                
+                const data = await res.json();
+
+                if (!res.ok) {
+                    // 如果后厨返回错误，也显示出来
+                    const errorMsg = (data.error && data.error.message) ? data.error.message : (data.error || `HTTP ${res.status}`);
+                    throw new Error(errorMsg);
+                }
+
+                if (!data.choices || data.choices.length === 0) return "(异兽陷入了沉思，未发一言)";
+                
+                // 直接返回后厨端回来的菜
+                return data.choices[0].message.content.trim();
+
+            } catch (error) {
+                console.error("请求后厨失败:", error);
+                // 让用户知道是连接后厨出错了
+                throw new Error(`连接后厨失败: ${error.message} (请确保后端服务已启动)`);
+            }
+        }
+                   
+        // --- 图卷与存档 (Robust Version) ---
+        async function showEncounterSummary() {
+            let summaryText = `你与【${currentEncounter.data.name}】的相遇暂告一段落。此番山海之行，或有得，或有失，皆是缘法。`;
+            try {
+                const historyForPrompt = storyHistory.slice(-5).map(entry => `${entry.speaker}: ${entry.text.replace(/<[^>]*>?/gm, '')}`).join('\n');
+                const summaryPrompt = `你是一位文笔斐然的史官。请基于以下对话历史，为这次奇遇撰写一段不超过50字的、充满古风韵味的总结性旁白，作为图卷上的题词。你的回复必须且仅能是这段旁白文字，禁止任何额外解释。\n\n# 对话历史:\n${historyForPrompt}`;
+                summaryText = await callLLM(summaryPrompt, []);
+            } catch(e) {
+                console.error("Failed to generate scroll summary from LLM:", e);
+            }
+            
+            try {
+                const encounterId = currentEncounter.data.id;
+                // 确保在journal中记录了该词条
+                if(currentEncounter.type === 'beast') await addFriend(currentEncounter.data, true); // 静默添加好友记录
+                else await db.journal.put({id: encounterId}); // 确保物品存在
+                
+                let journalEntry = await db.journal.get(encounterId);
+                if (!journalEntry) journalEntry = { id: encounterId, summaries: [] };
+                if (!journalEntry.summaries) journalEntry.summaries = [];
+                
+                journalEntry.summaries.push({ date: new Date().toISOString(), text: summaryText });
+                await db.journal.put(journalEntry);
+            } catch(dbError) {
+                console.error("保存图卷总结到数据库失败:", dbError);
+            }
+            showDialog(`
+                <div class="dialog-title">本回图卷</div>
+                <canvas id="scrollCanvas" width="400" height="300" style="width:100%; border:1px solid var(--theme-border); border-radius: 4px;"></canvas>
+                <div class="dialog-actions">
+                    <button class="dialog-btn" id="saveScrollBtn">保存图卷</button>
+                    <button class="dialog-btn primary" id="closeSummaryBtn">完成</button>
+                </div>
+            `, '600px');
+            
+            drawScroll(summaryText);
+            document.getElementById('saveScrollBtn').addEventListener('click', saveScrollAsImage);
+            document.getElementById('closeSummaryBtn').addEventListener('click', () => {
+                hideDialog();
+                switchView('world');
+            });
+        }
+        
+        function wrapCanvasText(context, text, x, y, maxWidth, lineHeight) {
+            let buffer = '';
+            let lines = text.split('\n');
+            for (let i = 0; i < lines.length; i++) {
+                let line = '';
+                let chars = lines[i].split('');
+                for (let j = 0; j < chars.length; j++) {
+                    let testLine = line + chars[j];
+                    let metrics = context.measureText(testLine);
+                    if (metrics.width > maxWidth && j > 0) {
+                        context.fillText(line, x, y);
+                        line = chars[j];
+                        y += lineHeight;
+                    } else {
+                        line = testLine;
+                    }
+                }
+                context.fillText(line, x, y);
+                y += lineHeight;
+            }
+        }
+        function drawScroll(summaryText) {
+            const canvas = document.getElementById('scrollCanvas');
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#f5f0e1';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            ctx.fillStyle = '#3a3a3a';
+            ctx.font = 'bold 24px "Noto Serif SC"';
+            ctx.textAlign = 'center';
+            ctx.fillText(`遇 · ${currentEncounter.data.name}`, canvas.width / 2, 50);
+            ctx.font = '16px "Noto Serif SC"';
+            const maxWidth = canvas.width - 60;
+            const lineHeight = 28;
+            wrapCanvasText(ctx, summaryText, canvas.width / 2, 100, maxWidth, lineHeight);
+            
+            ctx.fillStyle = '#c0392b';
+            ctx.font = 'italic 14px "Noto Serif SC"';
+            ctx.textAlign = 'right';
+            ctx.fillText(new Date().toLocaleDateString(), canvas.width - 20, canvas.height - 20);
+        }
+        function saveScrollAsImage() {
+            const canvas = document.getElementById('scrollCanvas');
+            const link = document.createElement('a');
+            link.download = `山海经图卷-${currentEncounter.data.name}.png`;
+            link.href = canvas.toDataURL('image/png');
+            link.click();
+        }
+        
+        async function exportData() {
+            try {
+                const allData = {};
+                for (const table of db.tables) {
+                    allData[table.name] = await table.toArray();
+                }
+                const dataStr = JSON.stringify(allData);
+                const filename = `山海经奇遇录_${new Date().toISOString().slice(0,10)}.json`;
+                const blob = new Blob([dataStr], {type: "application/json"});
+                const fileToShare = new File([blob], filename, { type: 'application/json' });
+                if (navigator.canShare && navigator.canShare({ files: [fileToShare] })) {
+                    try {
+                        await navigator.share({ files: [fileToShare], title: '山海经奇遇录存档', text: `存档文件: ${filename}` });
+                        return;
+                    } catch (err) { console.error("Web Share API 失败:", err); }
+                }
+                const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+                if (isIOS) {
+                    showDialog(`
+                        <div class="dialog-title">iOS 导出存档</div>
+                        <p style="text-align: left; line-height: 1.6; margin-bottom: 20px;">
+                            你的设备不支持直接下载文件，请按以下步骤手动保存：<br><br>
+                            <strong>1. 点击“一键复制”按钮。</strong><br>
+                            <strong>2. 打开手机的“备忘录”App。</strong><br>
+                            <strong>3. 新建备忘录，长按并选择“粘贴”。</strong><br>
+                            <strong>4. 点击分享按钮，选择“存储到‘文件’”。</strong><br>
+                            <strong>5. 将文件名修改为 <code style="background: #ddd; padding: 2px 5px; border-radius: 4px;">${filename}</code> 并保存。</strong>
+                        </p>
+                        <div class="form-group"><textarea id="ios-export-textarea" rows="5" readonly style="background: #eee; -webkit-user-select: text; user-select: text;">${dataStr}</textarea></div>
+                        <div class="dialog-actions" style="justify-content: center;"><button id="ios-copy-btn" class="dialog-btn primary">一键复制</button></div>
+                    `);
+                    document.getElementById('ios-copy-btn').onclick = () => {
+                        const textarea = document.getElementById('ios-export-textarea');
+                        const textToCopy = textarea.value;
+                        if (navigator.clipboard && window.isSecureContext) {
+                            // Modern async method
+                            navigator.clipboard.writeText(textToCopy).then(() => {
+                                showDialog(`<div class="dialog-title">成功</div><p>已复制到剪贴板！</p><div class="dialog-actions"><button class="dialog-btn">好</button></div>`);
+                            }, () => {
+                                showDialog(`<div class="dialog-title">失败</div><p>自动复制失败，请手动长按文本框进行复制。</p><div class="dialog-actions"><button class="dialog-btn">好</button></div>`);
+                            });
+                        } else {
+                            // Fallback for older browsers
+                            textarea.select();
+                            textarea.setSelectionRange(0, 99999);
+                            try {
+                                document.execCommand('copy');
+                                showDialog(`<div class="dialog-title">成功</div><p>已复制到剪贴板！</p><div class="dialog-actions"><button class="dialog-btn">好</button></div>`);
+                            } catch (err) {
+                                showDialog(`<div class="dialog-title">失败</div><p>自动复制失败，请手动长按文本框进行复制。</p><div class="dialog-actions"><button class="dialog-btn">好</button></div>`);
+                            }
+                        }
+                    };
+                } else {
+                    const a = document.createElement('a');
+                    const url = URL.createObjectURL(blob);
+                    a.href = url;
+                    a.download = filename;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                }
+            } catch (e) {
+                showDialog(`<div class="dialog-title">错误</div><p>导出存档失败: ${e.message}</p><div class="dialog-actions"><button class="dialog-btn">好</button></div>`);
+            }
+        }
+        
+        function importData(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            showDialog(`
+                <div class="dialog-title">确认导入</div>
+                <p>导入存档将覆盖当前所有进度。确定要继续吗？</p>
+                <div class="dialog-actions">
+                    <button class="dialog-btn cancel-btn">取消</button>
+                    <button class="dialog-btn" id="confirmImport">确定</button>
+                </div>
+            `);
+            document.getElementById('confirmImport').onclick = () => {
+                const reader = new FileReader();
+                reader.onload = async (e) => {
+                    try {
+                        const importedData = JSON.parse(e.target.result);
+                        if (!importedData.playerProfile || !importedData.gameState) {
+                            throw new Error("存档文件格式无效或已损坏。");
+                        }
+                        await db.transaction('rw', db.tables.map(table => table.name), async () => {
+                            for (const tableName in importedData) {
+                                if (db[tableName]) {
+                                    await db[tableName].clear();
+                                    await db[tableName].bulkPut(importedData[tableName]);
+                                }
+                            }
+                        });
+                        hideDialog();
+                        showDialog(`<div class="dialog-title">成功</div><p>存档导入成功！应用将重新加载。</p><div class="dialog-actions"><button class="dialog-btn" onclick="window.location.reload()">好</button></div>`);
+                    } catch (error) {
+                        hideDialog();
+                        showDialog(`<div class="dialog-title">失败</div><p>导入失败: ${error.message}</p><div class="dialog-actions"><button class="dialog-btn">好</button></div>`);
+                    }
+                };
+                reader.readAsText(file);
+                event.target.value = '';
+            };
+        }
+        // --- UI 工具函数 ---
+        function showDialog(content, maxWidth = '500px') {
+            const dialog = document.getElementById('wizardDialog');
+            const contentEl = document.getElementById('dialogContent');
+            contentEl.style.maxWidth = maxWidth;
+            contentEl.innerHTML = `<button class="close-dialog-btn">&times;</button>${content}`;
+            dialog.classList.remove('hidden');
+            dialog.querySelector('.close-dialog-btn').onclick = hideDialog;
+            
+            // Failsafe for simple "OK" and "Cancel" buttons
+            dialog.querySelectorAll('.dialog-actions .dialog-btn').forEach(btn => {
+                const buttonText = btn.textContent.trim();
+                const isCancelType = ['好', '好吧', '关闭', '取消'].includes(buttonText) || btn.classList.contains('cancel-btn');
+                if (isCancelType && !btn.hasAttribute('onclick') && !btn.onclick) {
+                    btn.onclick = hideDialog;
+                }
+            });
+            dialog.onclick = (e) => { if (e.target === dialog) hideDialog(); };
+        }
+        function hideDialog() {
+            document.getElementById('wizardDialog').classList.add('hidden');
+        }
+        // --- 应用启动 ---
+(async function() {
+    try {
+        const isInitialized = await loadDataFromDB();
+        renderApp(isInitialized);
+        const splashScreen = document.getElementById('splash-screen');
+        // 停留2秒后，再开始执行消失动画
+        setTimeout(() => {
+            splashScreen.classList.add('hidden');
+            // 800毫秒是CSS里动画的过渡时间，等动画放完再移除元素
+            setTimeout(() => { splashScreen.remove(); }, 800);
+        }, 2000); // 这里的2000代表2000毫秒，也就是2秒
+    } catch (error) {
+        document.body.innerHTML = `<div style="padding:20px; color:red;"><h3>应用初始化失败</h3><p>${error.stack}</p></div>`;
+    }
+})();
+    })();
+}
+window.onload = startApp;
+</script>
+</body>
+</html>
