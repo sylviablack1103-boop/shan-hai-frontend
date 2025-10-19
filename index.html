@@ -1490,20 +1490,18 @@ ${historyText}
 
             try {
                 // 新的请求地址，指向我们自己的后厨
-                const backendUrl = 'https://1383238680-jqh8cswc46.ap-beijing.tencentscf.com/api/chat';
+                const backendUrl = 'https://1383238680-jqh8cswc46.ap-beijing.tencentscf.com';
 
-                const res = await fetch(backendUrl, {
+                const res = await fetch(backendUrl + '/api/chat', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                     },
-                    // 把所有需要的信息，包括prompt和API配置，都打包发给后厨
                     body: JSON.stringify({
                         systemPrompt: systemPrompt,
                         model: model,
                         url: url,
                         key: key
-                        // 注意：我们不再发送history，因为后端逻辑简化了，只处理单次prompt
                     })
                 });
                 
