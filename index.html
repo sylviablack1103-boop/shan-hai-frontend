@@ -1483,46 +1483,47 @@ ${historyText}
             }
         }
         
-     async function callLLM(systemPrompt, history = [], config = state.apiConfig) {
-            const { url, key, model } = config;
-            // API密钥和模型名称现在是在前端配置的，后端只是一个安全的通道
-            if (!url || !key || !model) throw new Error("API URL, Key, 和模型名称未配置。");
+    // 修改后的 shan-hai-frontend/index.html
 
-            try {
-                // 新的请求地址，指向我们自己的后厨
-                const backendUrl = 'https://shan-hai-backend.netlify.app';
-                const res = await fetch(backendUrl + '/api/chat', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        systemPrompt: systemPrompt,
-                        model: model,
-                        url: url,
-                        key: key
-                    })
-                });
-                
-                const data = await res.json();
+async function callLLM(systemPrompt, history = [], config = state.apiConfig) {
+    // 从 config 中解构时，不再需要 key
+    const { url, key, model } = config; 
+    
+    // 检查 url 和 model 即可，key 由后端处理
+    if (!url || !model) throw new Error("API URL 和模型名称未配置。");
 
-                if (!res.ok) {
-                    // 如果后厨返回错误，也显示出来
-                    const errorMsg = (data.error && data.error.message) ? data.error.message : (data.error || `HTTP ${res.status}`);
-                    throw new Error(errorMsg);
-                }
+    try {
+        const backendUrl = 'https://shan-hai-backend.netlify.app';
+        const res = await fetch(backendUrl + '/api/chat', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            // 在发送给后端的 body 中，完全移除 key 字段
+            body: JSON.stringify({
+                systemPrompt: systemPrompt,
+                model: model,
+                url: url
+                // key: key  <-- 删除这一行
+            })
+        });
 
-                if (!data.choices || data.choices.length === 0) return "(异兽陷入了沉思，未发一言)";
-                
-                // 直接返回后厨端回来的菜
-                return data.choices[0].message.content.trim();
+        const data = await res.json();
 
-            } catch (error) {
-                console.error("请求后厨失败:", error);
-                // 让用户知道是连接后厨出错了
-                throw new Error(`连接后厨失败: ${error.message} (请确保后端服务已启动)`);
-            }
+        if (!res.ok) {
+            const errorMsg = (data.error && data.error.message) ? data.error.message : (data.error || `HTTP ${res.status}`);
+            throw new Error(errorMsg);
         }
+
+        if (!data.choices || data.choices.length === 0) return "(异兽陷入了沉思，未发一言)";
+
+        return data.choices[0].message.content.trim();
+
+    } catch (error) {
+        console.error("请求后厨失败:", error);
+        throw new Error(`连接后厨失败: ${error.message}`); // 移除了 "(请确保后端服务已启动)" 的提示，因为后端已经启动了
+    }
+}
                    
         // --- 图卷与存档 (Robust Version) ---
         async function showEncounterSummary() {
