@@ -1493,19 +1493,19 @@ async function callLLM(systemPrompt, history = [], config = state.apiConfig) {
     if (!url || !model) throw new Error("API URL 和模型名称未配置。");
 
     try {
-        const backendUrl = 'https://shan-hai-backend.netlify.app';
+        const backendUrl = 'https://shan-hai-worker.shan-hai.workers.dev';
         const res = await fetch(backendUrl + '/api/chat', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
             },
-            // 在发送给后端的 body 中，完全移除 key 字段
-            body: JSON.stringify({
-                systemPrompt: systemPrompt,
-                model: model,
-                url: url
-                // key: key  <-- 删除这一行
-            })
+          body: JSON.stringify({
+    systemPrompt: systemPrompt,
+    model: model,
+    url: url,
+    apiKey: key  // 添加这一行
+})
+               
         });
 
         const data = await res.json();
