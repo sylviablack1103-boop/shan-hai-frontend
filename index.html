@@ -1494,7 +1494,7 @@ async function callLLM(systemPrompt, history = [], config = state.apiConfig) {
 
     try {
         const backendUrl = 'https://shan-hai-worker.shan-hai.workers.dev';
-        const res = await fetch(backendUrl + '/api/chat', {
+        const res = await fetch(backendUrl, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
