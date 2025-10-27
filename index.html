@@ -1244,10 +1244,7 @@ function startApp() {
                 }
                 const prompt = buildLLMPrompt(action, detail);
                 
-                const thinkingHTML = `<span class="thinking-indicator">思考中...</span>`;
-                const thinkingEntry = addToStoryPanel(thinkingHTML, currentEncounter.type === 'beast' ? currentEncounter.data.name : '旁白');
-                
-        try {
+                    try {
                     if (!state.apiConfig.key) throw new Error("API未配置，请在“我”页面进行设置。");
                     
                     // --- 流式修改 START ---
